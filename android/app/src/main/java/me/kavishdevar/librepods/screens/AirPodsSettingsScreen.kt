@@ -344,11 +344,14 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                     )
                 }
 
-                NameField(
-                    name = stringResource(R.string.name),
-                    value = deviceName.text,
-                    navController = navController
-                )
+                // Only show name field when not in BLE-only mode
+                if (!bleOnlyMode) {
+                    NameField(
+                        name = stringResource(R.string.name),
+                        value = deviceName.text,
+                        navController = navController
+                    )
+                }
 
                 // Only show L2CAP-dependent features when not in BLE-only mode
                 if (!bleOnlyMode) {
@@ -396,7 +399,8 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                     service = service,
                     functionName = "setEarDetection",
                     sharedPreferences = sharedPreferences,
-                    default = true
+                    default = true,
+                    description = if (bleOnlyMode) "BLE-only mode ear detection is unreliable" else null
                 )
 
                 // Only show debug when not in BLE-only mode  

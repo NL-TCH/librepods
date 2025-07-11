@@ -186,6 +186,13 @@ fun AppSettingsScreen(navController: NavController) {
     var bleOnlyMode by remember {
         mutableStateOf(sharedPreferences.getBoolean("ble_only_mode", false))
     }
+    
+    // Ensure the default value is properly set if not exists
+    LaunchedEffect(Unit) {
+        if (!sharedPreferences.contains("ble_only_mode")) {
+            sharedPreferences.edit().putBoolean("ble_only_mode", false).apply()
+        }
+    }
 
     var mDensity by remember { mutableFloatStateOf(0f) }
 
