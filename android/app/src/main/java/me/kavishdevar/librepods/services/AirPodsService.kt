@@ -193,6 +193,15 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             device: BLEManager.AirPodsStatus,
             previousStatus: BLEManager.AirPodsStatus?
         ) {
+            // Store MAC address for BLE-only mode if not already stored
+            if (config.bleOnlyMode && macAddress.isEmpty()) {
+                macAddress = device.address
+                sharedPreferences.edit {
+                    putString("mac_address", macAddress)
+                }
+                Log.d("AirPodsBLEService", "BLE-only mode: stored MAC address ${device.address}")
+            }
+            
             if (device.connectionState == "Disconnected" && !config.bleOnlyMode) {
                 Log.d("AirPodsBLEService", "Seems no device has taken over, we will.")
                 val bluetoothManager = getSystemService(BluetoothManager::class.java)
@@ -260,7 +269,12 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             leftInEar: Boolean,
             rightInEar: Boolean
         ) {
-            Log.d("AirPodsBLEService", "Ear state changed")
+            Log.d("AirPodsBLEService", "Ear state changed - Left: $leftInEar, Right: $rightInEar")
+            
+            // In BLE-only mode, ear detection is purely based on BLE data
+            if (config.bleOnlyMode) {
+                Log.d("AirPodsBLEService", "BLE-only mode: ear detection from BLE data")
+            }
         }
 
         override fun onBatteryChanged(device: BLEManager.AirPodsStatus) {
@@ -1005,10 +1019,10 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        if (!::socket.isInitialized) {
+        if (!::socket.isInitialized && !config.bleOnlyMode) {
             return
         }
-        if (connected && socket.isConnected) {
+        if (connected && (config.bleOnlyMode || socket.isConnected)) {
             updatedNotification = NotificationCompat.Builder(this, "airpods_connection_status")
                 .setSmallIcon(R.drawable.airpods)
                 .setContentTitle(airpodsName ?: config.deviceName)
@@ -1060,7 +1074,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
             notificationManager.notify(1, updatedNotification)
             notificationManager.cancel(2)
-        } else if (!socket.isConnected && isConnectedLocally) {
+        } else if (!config.bleOnlyMode && !socket.isConnected && isConnectedLocally) {
             Log.d("AirPodsService", "<LogCollector:Complete:Failed> Socket not connected")
             showSocketConnectionFailureNotification("Socket created, but not connected. Is the Bluetooth process hooked?")
         }
