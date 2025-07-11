@@ -113,6 +113,7 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
     var isLocallyConnected by remember { mutableStateOf(isConnected) }
     var isRemotelyConnected by remember { mutableStateOf(isRemotelyConnected) }
     val sharedPreferences = LocalContext.current.getSharedPreferences("settings", MODE_PRIVATE)
+    val bleOnlyMode = sharedPreferences.getBoolean("ble_only_mode", false)
     var device by remember { mutableStateOf(dev) }
     var deviceName by remember {
         mutableStateOf(
@@ -328,6 +329,20 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                 BatteryView(service = service)
 
                 Spacer(modifier = Modifier.height(32.dp))
+                
+                // Show BLE-only mode indicator
+                if (bleOnlyMode) {
+                    Text(
+                        text = "BLE-only mode - advanced features disabled",
+                        style = TextStyle(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f),
+                            fontFamily = FontFamily(Font(R.font.sf_pro))
+                        ),
+                        modifier = Modifier.padding(8.dp, bottom = 16.dp)
+                    )
+                }
 
                 NameField(
                     name = stringResource(R.string.name),
@@ -335,30 +350,46 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                     navController = navController
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
-                NoiseControlSettings(service = service)
+                // Only show L2CAP-dependent features when not in BLE-only mode
+                if (!bleOnlyMode) {
+                    Spacer(modifier = Modifier.height(32.dp))
+                    NoiseControlSettings(service = service)
 
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(R.string.head_gestures).uppercase(),
-                    style = TextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Light,
-                        color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f),
-                        fontFamily = FontFamily(Font(R.font.sf_pro))
-                    ),
-                    modifier = Modifier.padding(8.dp, bottom = 2.dp)
-                )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.head_gestures).uppercase(),
+                        style = TextStyle(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Light,
+                            color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f),
+                            fontFamily = FontFamily(Font(R.font.sf_pro))
+                        ),
+                        modifier = Modifier.padding(8.dp, bottom = 2.dp)
+                    )
 
-                Spacer(modifier = Modifier.height(2.dp))
-                NavigationButton(to = "head_tracking", "Head Tracking", navController)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    NavigationButton(to = "head_tracking", "Head Tracking", navController)
 
-                Spacer(modifier = Modifier.height(16.dp))
-                PressAndHoldSettings(navController = navController)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    PressAndHoldSettings(navController = navController)
 
-                Spacer(modifier = Modifier.height(16.dp))
-                AudioSettings()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    AudioSettings()
 
+                    Spacer(modifier = Modifier.height(16.dp))
+                    IndependentToggle(
+                        name = "Off Listening Mode",
+                        service = service,
+                        sharedPreferences = sharedPreferences,
+                        default = false,
+                        controlCommandIdentifier = AACPManager.Companion.ControlCommandIdentifiers.ALLOW_OFF_OPTION
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    AccessibilitySettings()
+                }
+
+                // Always show ear detection (works with BLE data)
                 Spacer(modifier = Modifier.height(16.dp))
                 IndependentToggle(
                     name = "Automatic Ear Detection",
@@ -368,20 +399,12 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                     default = true
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-                IndependentToggle(
-                    name = "Off Listening Mode",
-                    service = service,
-                    sharedPreferences = sharedPreferences,
-                    default = false,
-                    controlCommandIdentifier = AACPManager.Companion.ControlCommandIdentifiers.ALLOW_OFF_OPTION
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-                AccessibilitySettings()
-
-                Spacer(modifier = Modifier.height(16.dp))
-                NavigationButton("debug", "Debug", navController)
+                // Only show debug when not in BLE-only mode  
+                if (!bleOnlyMode) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    NavigationButton("debug", "Debug", navController)
+                }
+                
                 Spacer(Modifier.height(24.dp))
             }
         }
