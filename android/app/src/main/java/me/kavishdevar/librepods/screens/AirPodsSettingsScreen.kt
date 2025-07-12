@@ -99,10 +99,10 @@ import me.kavishdevar.librepods.composables.NameField
 import me.kavishdevar.librepods.composables.NavigationButton
 import me.kavishdevar.librepods.composables.NoiseControlSettings
 import me.kavishdevar.librepods.composables.PressAndHoldSettings
+import me.kavishdevar.librepods.constants.AirPodsNotifications
 import me.kavishdevar.librepods.services.AirPodsService
 import me.kavishdevar.librepods.ui.theme.LibrePodsTheme
 import me.kavishdevar.librepods.utils.AACPManager
-import me.kavishdevar.librepods.utils.AirPodsNotifications
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class)
@@ -329,7 +329,7 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                 BatteryView(service = service)
 
                 Spacer(modifier = Modifier.height(32.dp))
-                
+
                 // Show BLE-only mode indicator
                 if (bleOnlyMode) {
                     Text(
@@ -392,7 +392,6 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                     AccessibilitySettings()
                 }
 
-                // Always show ear detection (works with BLE data)
                 Spacer(modifier = Modifier.height(16.dp))
                 IndependentToggle(
                     name = "Automatic Ear Detection",
@@ -400,15 +399,14 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                     functionName = "setEarDetection",
                     sharedPreferences = sharedPreferences,
                     default = true,
-                    description = if (bleOnlyMode) "BLE-only mode ear detection is unreliable" else null
                 )
 
-                // Only show debug when not in BLE-only mode  
+                // Only show debug when not in BLE-only mode
                 if (!bleOnlyMode) {
                     Spacer(modifier = Modifier.height(16.dp))
                     NavigationButton("debug", "Debug", navController)
                 }
-                
+
                 Spacer(Modifier.height(24.dp))
             }
         }

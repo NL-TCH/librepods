@@ -27,9 +27,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -54,7 +52,7 @@ import me.kavishdevar.librepods.utils.AACPManager
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
-fun IndependentToggle(name: String, service: AirPodsService? = null, functionName: String? = null, sharedPreferences: SharedPreferences, default: Boolean = false, controlCommandIdentifier: AACPManager.Companion.ControlCommandIdentifiers? = null, description: String? = null) {
+fun IndependentToggle(name: String, service: AirPodsService? = null, functionName: String? = null, sharedPreferences: SharedPreferences, default: Boolean = false, controlCommandIdentifier: AACPManager.Companion.ControlCommandIdentifiers? = null) {
     val isDarkTheme = isSystemInDarkTheme()
     val textColor = if (isDarkTheme) Color.White else Color.Black
     val snakeCasedName =
@@ -109,23 +107,11 @@ fun IndependentToggle(name: String, service: AirPodsService? = null, functionNam
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .height(55.dp)
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(text = name, fontSize = 16.sp, color = textColor)
-                if (description != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = description,
-                        fontSize = 14.sp,
-                        color = textColor.copy(0.6f),
-                        lineHeight = 16.sp,
-                    )
-                }
-            }
+            Text(text = name, modifier = Modifier.weight(1f), fontSize = 16.sp, color = textColor)
             StyledSwitch(
                 checked = checked,
                 onCheckedChange = {
