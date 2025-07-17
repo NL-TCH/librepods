@@ -37,6 +37,7 @@ import org.robolectric.annotation.Config
 class MainActivityTest {
 
     @Test
+    @Suppress("DEPRECATION")
     fun testActivityCreation() {
         val activity = Robolectric.buildActivity(MainActivity::class.java)
             .create()
@@ -48,6 +49,7 @@ class MainActivityTest {
     }
     
     @Test
+    @Suppress("DEPRECATION")
     fun testDeepLinkHandling() {
         val intent = Intent().apply {
             action = Intent.ACTION_VIEW
