@@ -1,0 +1,22 @@
+LibrePods unlocks Apple's exclusive AirPods features on non-Apple devices. Get access to noise control modes, adaptive transparency, ear detection, battery status, and more - all the premium features you paid for but Apple locked to their ecosystem.
+
+Key Features:
+• Noise Control Modes: Easily switch between noise control modes without having to reach out to your AirPods
+• Ear Detection: Controls your music automatically when you put your AirPods in or take them out
+• Battery Status: Accurate battery levels for both earbuds and charging case
+• Head Gestures: Answer calls just by nodding your head
+• Conversational Awareness: Volume automatically lowers when you speak
+• Device Customization: Rename your AirPods and customize long-press actions
+• Accessibility Features: Various accessibility options to enhance usability
+
+Platform Support:
+• Fully supports AirPods Pro (2nd Gen) with comprehensive testing
+• Basic features (battery status, ear detection) work with other AirPods models
+• Requires root access due to Android Bluetooth stack limitations
+
+Important Notes:
+• Root access is required for this app to function properly
+• This is due to a bug in the Android Bluetooth stack that prevents proper L2CAP communication
+• The app includes multiple installation methods: Xposed module (recommended), root module, or manual patching
+
+LibrePods is open source and licensed under AGPL v3. The project aims to provide users with the features they paid for when purchasing AirPods, regardless of their choice of smartphone platform.

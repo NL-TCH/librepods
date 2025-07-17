@@ -16,6 +16,13 @@ sliceBuilders = "1.1.0-alpha02"
 sliceCore = "1.1.0-alpha02"
 sliceView = "1.1.0-alpha02"
 dynamicanimation = "1.1.0"
+junit = "4.13.2"
+junitExt = "1.2.1"
+espresso = "3.6.1"
+mockk = "1.13.8"
+composeTest = "2025.04.00"
+robolectric = "4.12.2"
+screengrab = "2.1.1"
 
 [libraries]
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanistPermissions" }
@@ -37,6 +44,18 @@ androidx-slice-builders = { group = "androidx.slice", name = "slice-builders", v
 androidx-slice-core = { group = "androidx.slice", name = "slice-core", version.ref = "sliceCore" }
 androidx-slice-view = { group = "androidx.slice", name = "slice-view", version.ref = "sliceView" }
 androidx-dynamicanimation = { group = "androidx.dynamicanimation", name = "dynamicanimation", version.ref = "dynamicanimation" }
+
+# Testing libraries
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitExt" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+screengrab = { group = "tools.fastlane", name = "screengrab", version.ref = "screengrab" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

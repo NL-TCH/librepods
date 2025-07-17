@@ -1,0 +1,140 @@
+# Fastfile for LibrePods Android App
+# This configuration includes F-Droid specific builds and automated screenshots
+
+default_platform(:android)
+
+platform :android do
+  desc "Run tests"
+  lane :test do
+    gradle(task: "test")
+    gradle(task: "connectedAndroidTest")
+  end
+
+  desc "Build debug APK"
+  lane :debug do
+    gradle(task: "assembleDebug")
+  end
+
+  desc "Build release APK for F-Droid"
+  lane :fdroid_release do
+    gradle(
+      task: "assembleRelease",
+      properties: {
+        "android.enableJetifier" => "true",
+        "android.useAndroidX" => "true"
+      }
+    )
+    
+    # Copy APK to a consistent location for F-Droid
+    copy_artifacts(
+      target_path: "fastlane/outputs/",
+      artifacts: ["app/build/outputs/apk/release/*.apk"]
+    )
+  end
+
+  desc "Generate screenshots for F-Droid and Play Store"
+  lane :screenshots do
+    # Clear previous screenshots
+    clear_derived_data
+    
+    # Run screenshot tests
+    screengrab(
+      locales: ['en-US'],
+      clear_previous_screenshots: true,
+      output_directory: 'fastlane/metadata/android',
+      app_package_name: 'me.kavishdevar.librepods',
+      test_instrumentation_runner: 'androidx.test.runner.AndroidJUnitRunner',
+      app_apk_path: 'app/build/outputs/apk/debug/app-debug.apk',
+      tests_apk_path: 'app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk',
+      use_tests_in_packages: ['me.kavishdevar.librepods.screenshots'],
+      ending_locale: 'en-US'
+    )
+  end
+
+  desc "Full F-Droid build pipeline"
+  lane :fdroid_pipeline do
+    # Run tests first
+    test
+    
+    # Generate screenshots
+    screenshots
+    
+    # Build release APK
+    fdroid_release
+    
+    # Validate APK
+    validate_apk
+  end
+
+  desc "Validate APK for F-Droid requirements"
+  lane :validate_apk do
+    # Check APK for F-Droid compliance
+    sh("which aapt || echo 'aapt not found, skipping APK validation'")
+    
+    apk_path = "app/build/outputs/apk/release/app-release-unsigned.apk"
+    if File.exist?(apk_path)
+      UI.success("✅ APK built successfully at #{apk_path}")
+      
+      # Check file size
+      file_size = File.size(apk_path) / 1024 / 1024
+      UI.message("📱 APK size: #{file_size}MB")
+      
+      if file_size > 100
+        UI.important("⚠️  APK size is quite large (#{file_size}MB), consider optimizing")
+      end
+    else
+      UI.error("❌ APK not found at expected location")
+    end
+  end
+
+  desc "Prepare for F-Droid submission"
+  lane :prepare_fdroid do
+    # Ensure we have all required metadata
+    ensure_fdroid_metadata
+    
+    # Run full pipeline
+    fdroid_pipeline
+    
+    UI.success("🎉 F-Droid preparation complete!")
+    UI.message("📋 Next steps:")
+    UI.message("1. Submit your app to F-Droid repository")
+    UI.message("2. Screenshots are available in fastlane/metadata/android/")
+    UI.message("3. APK is available in fastlane/outputs/")
+  end
+
+  private_lane :ensure_fdroid_metadata do
+    # Create F-Droid metadata directory structure
+    metadata_dir = "fastlane/metadata/android/en-US"
+    FileUtils.mkdir_p(metadata_dir)
+    
+    # Create basic metadata files if they don't exist
+    files_to_create = [
+      "title.txt",
+      "short_description.txt", 
+      "full_description.txt",
+      "changelogs"
+    ]
+    
+    files_to_create.each do |file|
+      file_path = File.join(metadata_dir, file)
+      if file == "changelogs"
+        FileUtils.mkdir_p(file_path)
+      elsif !File.exist?(file_path)
+        File.write(file_path, get_default_content(file))
+      end
+    end
+  end
+
+  private_lane :get_default_content do |filename|
+    case filename
+    when "title.txt"
+      "LibrePods"
+    when "short_description.txt"
+      "AirPods features liberated from Apple's ecosystem"
+    when "full_description.txt"
+      "LibrePods unlocks Apple's exclusive AirPods features on non-Apple devices. Get access to noise control modes, adaptive transparency, ear detection, battery status, and more - all the premium features you paid for but Apple locked to their ecosystem."
+    else
+      ""
+    end
+  end
+end

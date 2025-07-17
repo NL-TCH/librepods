@@ -1,0 +1,5 @@
+• Added comprehensive testing infrastructure
+• Automated screenshot generation for F-Droid
+• Mock data providers for testing without hardware
+• UI tests that bypass root setup for development
+• Fastlane integration for automated builds and deployments
