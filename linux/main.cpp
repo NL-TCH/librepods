@@ -42,8 +42,10 @@ class AirPodsTrayApp : public QObject {
     Q_PROPERTY(bool hideOnStart READ hideOnStart CONSTANT)
     Q_PROPERTY(DeviceInfo *deviceInfo READ deviceInfo CONSTANT)
     Q_PROPERTY(QString phoneMacStatus READ phoneMacStatus NOTIFY phoneMacStatusChanged)
+    Q_PROPERTY(QString connectedPhoneName READ connectedPhoneName NOTIFY connectedPhoneNameChanged)
 
 public:
+    QString connectedPhoneName() const { return m_connectedPhoneName; }
     AirPodsTrayApp(bool debugMode, bool hideOnStart, QQmlApplicationEngine *parent = nullptr)
         : QObject(parent), debugMode(debugMode), m_settings(new QSettings("AirPodsTrayApp", "AirPodsTrayApp"))
         , m_autoStartManager(new AutoStartManager(this)), m_hideOnStart(hideOnStart), parent(parent)
@@ -126,6 +128,7 @@ public:
 private:
     bool debugMode;
     bool isConnectedLocally = false;
+    QString m_connectedPhoneName;
 
     QQmlApplicationEngine *parent = nullptr;
 
@@ -710,6 +713,11 @@ private slots:
         if (!env.value("PHONE_MAC_ADDRESS").isEmpty())
         {
             phoneAddress = QBluetoothAddress(env.value("PHONE_MAC_ADDRESS"));
+            // Get the phone name using BluetoothMonitor
+            BluetoothMonitor monitor;
+            QString phoneName = monitor.getDeviceName(phoneAddress.toString());
+            m_connectedPhoneName = phoneName.isEmpty() ? phoneAddress.toString() : phoneName;
+            emit connectedPhoneNameChanged();
         }
         phoneSocket = new QBluetoothSocket(QBluetoothServiceInfo::L2capProtocol);
         connect(phoneSocket, &QBluetoothSocket::connected, this, [this]() {
@@ -895,6 +903,7 @@ signals:
     void conversationalAwarenessChanged(bool enabled);
     void adaptiveNoiseLevelChanged(int level);
     void deviceNameChanged(const QString &name);
+    void connectedPhoneNameChanged();
     void modelChanged();
     void primaryChanged();
     void airPodsStatusChanged();

@@ -33,6 +33,9 @@ public:
         }
     }
 
+    // Set or clear the resolved phone name displayed next to the Conversational Awareness menu entry
+    void setPhoneName(const QString &name);
+
     void resetTrayIcon()
     {
         trayIcon->setIcon(QIcon(":/icons/assets/airpods.png"));
@@ -51,6 +54,7 @@ private:
     QAction *caToggleAction;
     QActionGroup *noiseControlGroup;
     bool m_notificationsEnabled = true;
+    QString m_phoneName;
 
     void setupMenuActions();
 

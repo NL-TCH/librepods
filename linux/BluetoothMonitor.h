@@ -28,7 +28,14 @@ private:
     QDBusConnection m_dbus;
     void registerDBusService();
     bool isAirPodsDevice(const QString &devicePath);
-    QString getDeviceName(const QString &devicePath);
+    QString getDevicePath(const QString &macAddress);
+    QString getDeviceNameFromBluetooth(const QString &macAddress);
+    QString getDeviceNameFromBluetoothctl(const QString &macAddress);
+    QString getDeviceNameFromCache(const QString &macAddress);
+    QStringList findAdapters();
+
+public:
+    QString getDeviceName(const QString &macAddress);
 };
 
 #endif // BLUETOOTHMONITOR_H

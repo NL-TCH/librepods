@@ -4,6 +4,11 @@
 #include <QDebug>
 #include <QDBusObjectPath>
 #include <QDBusMetaType>
+#include <QProcess>
+#include <QDir>
+#include <QDirIterator>
+#include <QRegularExpression>
+#include <QFile>
 
 BluetoothMonitor::BluetoothMonitor(QObject *parent)
     : QObject(parent), m_dbus(QDBusConnection::systemBus())
@@ -52,15 +57,160 @@ bool BluetoothMonitor::isAirPodsDevice(const QString &devicePath)
     return uuids.contains("74ec2172-0bad-4d01-8f77-997b2be0722a");
 }
 
-QString BluetoothMonitor::getDeviceName(const QString &devicePath)
+QString BluetoothMonitor::getDevicePath(const QString &macAddress)
 {
+    // Convert MAC address to lowercase and replace colons with underscores
+    QString formattedMac = macAddress.toLower().replace(":", "_");
+    
+    // List all BlueZ devices
+    QDBusInterface objectManager("org.bluez", "/", "org.freedesktop.DBus.ObjectManager", m_dbus);
+    QDBusMessage reply = objectManager.call("GetManagedObjects");
+    
+    if (reply.type() == QDBusMessage::ReplyMessage) {
+        ManagedObjectList objects = qdbus_cast<ManagedObjectList>(reply.arguments().at(0));
+        
+        // Look for the device with matching address
+        for (const auto &path : objects.keys()) {
+            QString objPath = path.path();
+            if (objPath.contains(formattedMac)) {
+                return objPath;
+            }
+        }
+    }
+    
+    // If no matching device is found, try the default path
+    return QString("/org/bluez/hci0/dev_%1").arg(formattedMac);
+}
+
+QStringList BluetoothMonitor::findAdapters()
+{
+    QStringList adapters;
+    QDBusInterface manager("org.bluez", "/", "org.freedesktop.DBus.ObjectManager", m_dbus);
+    QDBusMessage reply = manager.call("GetManagedObjects");
+    
+    if (reply.type() == QDBusMessage::ReplyMessage) {
+        ManagedObjectList objects = qdbus_cast<ManagedObjectList>(reply.arguments().at(0));
+        for (const auto &path : objects.keys()) {
+            QString objPath = path.path();
+            if (objPath.contains("/org/bluez/hci")) {
+                adapters.append(objPath);
+            }
+        }
+    }
+    return adapters;
+}
+
+QString BluetoothMonitor::getDeviceNameFromBluetooth(const QString &macAddress)
+{
+    // Try all available adapters
+    QStringList adapters = findAdapters();
+    for (const QString &adapter : adapters) {
+        QDBusInterface adapterInterface("org.bluez", adapter, "org.bluez.Adapter1", m_dbus);
+        QDBusReply<QDBusObjectPath> deviceReply = adapterInterface.call("GetDevice", macAddress);
+        
+        if (deviceReply.isValid()) {
+            QDBusInterface deviceInterface("org.bluez", deviceReply.value().path(), 
+                                        "org.freedesktop.DBus.Properties", m_dbus);
+            QDBusReply<QVariant> nameReply = deviceInterface.call("Get", "org.bluez.Device1", "Name");
+            
+            if (nameReply.isValid() && !nameReply.value().toString().isEmpty()) {
+                return nameReply.value().toString();
+            }
+        }
+    }
+    return QString();
+}
+
+QString BluetoothMonitor::getDeviceNameFromBluetoothctl(const QString &macAddress)
+{
+    QProcess process;
+    process.start("bluetoothctl", QStringList() << "info" << macAddress);
+    process.waitForFinished(2000);
+    
+    if (process.exitCode() == 0) {
+        QString output = QString::fromUtf8(process.readAllStandardOutput());
+        QRegularExpression nameRegex("Name:\\s*(.+)\\n");
+        QRegularExpressionMatch match = nameRegex.match(output);
+        
+        if (match.hasMatch()) {
+            return match.captured(1).trimmed();
+        }
+    }
+    return QString();
+}
+
+QString BluetoothMonitor::getDeviceNameFromCache(const QString &macAddress)
+{
+    // Check common cache locations
+    QStringList cachePaths = {
+        "/var/lib/bluetooth",
+        QDir::homePath() + "/.cache/bluetooth"
+    };
+    
+    QString formattedMac = macAddress.toLower();
+    for (const QString &basePath : cachePaths) {
+        QDirIterator it(basePath, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            QString path = it.next();
+            if (path.contains(formattedMac)) {
+                QFile infoFile(path + "/info");
+                if (infoFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    QString content = QString::fromUtf8(infoFile.readAll());
+                    QRegularExpression nameRegex("Name=(.+)\\n");
+                    QRegularExpressionMatch match = nameRegex.match(content);
+                    if (match.hasMatch()) {
+                        return match.captured(1).trimmed();
+                    }
+                }
+            }
+        }
+    }
+    return QString();
+}
+
+QString BluetoothMonitor::getDeviceName(const QString &macAddress)
+{
+    LOG_INFO("Attempting to resolve name for device: " << macAddress);
+    
+    // First try the standard BlueZ D-Bus interface
+    QString devicePath = getDevicePath(macAddress);
+    LOG_INFO("Trying BlueZ D-Bus interface with path: " << devicePath);
     QDBusInterface deviceInterface("org.bluez", devicePath, "org.freedesktop.DBus.Properties", m_dbus);
     QDBusReply<QVariant> nameReply = deviceInterface.call("Get", "org.bluez.Device1", "Name");
-    if (nameReply.isValid())
+    
+    if (nameReply.isValid() && !nameReply.value().toString().isEmpty())
     {
+        LOG_INFO("Found name via BlueZ D-Bus: " << nameReply.value().toString());
         return nameReply.value().toString();
     }
-    return "Unknown";
+
+    // Try alternative BlueZ method
+    LOG_INFO("Trying alternative BlueZ method...");
+    QString name = getDeviceNameFromBluetooth(macAddress);
+    if (!name.isEmpty()) {
+        LOG_INFO("Found name via alternative BlueZ method: " << name);
+        return name;
+    }
+
+    // Try bluetoothctl command
+    LOG_INFO("Trying bluetoothctl command...");
+    name = getDeviceNameFromBluetoothctl(macAddress);
+    if (!name.isEmpty()) {
+        LOG_INFO("Found name via bluetoothctl: " << name);
+        return name;
+    }
+
+    // Try reading from cache
+    LOG_INFO("Trying to read from cache...");
+    name = getDeviceNameFromCache(macAddress);
+    if (!name.isEmpty()) {
+        LOG_INFO("Found name in cache: " << name);
+        return name;
+    }
+
+    // If all methods fail, return the MAC address
+    LOG_WARN("Could not resolve device name for MAC: " << macAddress);
+    return macAddress;
 }
 
 bool BluetoothMonitor::checkAlreadyConnectedDevices()

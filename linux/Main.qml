@@ -152,7 +152,7 @@ ApplicationWindow {
 
                 Switch {
                     visible: airPodsTrayApp.airpodsConnected
-                    text: "Conversational Awareness"
+                    text: "Conversational Awareness" + (airPodsTrayApp.connectedPhoneName ? " (" + airPodsTrayApp.connectedPhoneName + ")" : "")
                     checked: airPodsTrayApp.deviceInfo.conversationalAwareness
                     // Disable when no phone MAC set or using default placeholder
                     enabled: !(PHONE_MAC_ADDRESS === "" || PHONE_MAC_ADDRESS === "00:00:00:00:00:00")

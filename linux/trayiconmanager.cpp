@@ -54,6 +54,17 @@ void TrayIconManager::updateConversationalAwareness(bool enabled)
     caToggleAction->setChecked(enabled);
 }
 
+void TrayIconManager::setPhoneName(const QString &name)
+{
+    m_phoneName = name;
+    // Update the action text to include the phone name when available
+    if (m_phoneName.isEmpty()) {
+        caToggleAction->setText("Toggle Conversational Awareness");
+    } else {
+        caToggleAction->setText(QString("Toggle Conversational Awareness — %1").arg(m_phoneName));
+    }
+}
+
 void TrayIconManager::setupMenuActions()
 {
     // Open action
