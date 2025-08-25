@@ -3,7 +3,7 @@ name: Build LibrePods Linux
 on:
   push:
     branches:
-      - main
+      - "*"
 
 jobs:
   build-linux:
