@@ -1,0 +1,33 @@
+name: Build LibrePods Linux
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake qtbase5-dev qtdeclarative5-dev libqt5svg5-dev qml-module-qtquick-controls2 qml-module-qtquick-layouts qml-module-qtquick-window2
+
+      - name: Build project
+        working-directory: linux
+        run: |
+          mkdir build
+          cd build
+          cmake ..
+          make -j"$(nproc)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: librepods-linux
+          path: linux/build/librepods
