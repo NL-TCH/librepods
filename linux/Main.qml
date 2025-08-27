@@ -291,7 +291,6 @@ ApplicationWindow {
 
                     Row {
                         spacing: 10
-                        visible: airPodsTrayApp.airpodsConnected
 
                         TextField {
                             id: newPhoneMacField
