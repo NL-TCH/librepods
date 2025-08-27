@@ -335,6 +335,37 @@ public slots:
         qputenv("PHONE_MAC_ADDRESS", mac.toUtf8());
         LOG_INFO("PHONE_MAC_ADDRESS environment variable set to: " << mac);
 
+        // Update ~/.profile to persist the MAC address
+        QString homePath = QDir::homePath();
+        QString profilePath = homePath + "/.profile";
+        QFile profileFile(profilePath);
+        
+        // Read existing content
+        QString content;
+        if (profileFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            content = QString::fromUtf8(profileFile.readAll());
+            profileFile.close();
+        }
+
+        // Remove any existing PHONE_MAC_ADDRESS export
+        QRegularExpression exportRe("export PHONE_MAC_ADDRESS=.*\\n?");
+        content = content.remove(exportRe);
+
+        // Add new export at the end
+        if (!content.endsWith("\n")) {
+            content.append("\n");
+        }
+        content.append(QString("export PHONE_MAC_ADDRESS=%1\n").arg(mac));
+
+        // Write back to file
+        if (profileFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            profileFile.write(content.toUtf8());
+            profileFile.close();
+            LOG_INFO("Updated ~/.profile with PHONE_MAC_ADDRESS");
+        } else {
+            LOG_ERROR("Failed to write to ~/.profile");
+        }
+
         m_phoneMacStatus = QStringLiteral("Updated MAC: ") + mac;
         emit phoneMacStatusChanged();
 
