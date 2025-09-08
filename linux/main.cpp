@@ -86,6 +86,19 @@ public:
         setEarDetectionBehavior(loadEarDetectionSettings());
         setRetryAttempts(loadRetryAttempts());
 
+        // Load saved phone MAC address
+        QString savedPhoneMac = m_settings->value("phone/mac_address").toString();
+        if (!savedPhoneMac.isEmpty()) {
+            // Set environment variable
+            qputenv("PHONE_MAC_ADDRESS", savedPhoneMac.toUtf8());
+            // Update QML context property
+            if (parent) {
+                parent->rootContext()->setContextProperty("PHONE_MAC_ADDRESS", savedPhoneMac);
+            }
+            // Update status
+            updatePhoneMacStatus(savedPhoneMac);
+        }
+
         monitor->checkAlreadyConnectedDevices();
         LOG_INFO("AirPodsTrayApp initialized");
 
@@ -331,40 +344,10 @@ public slots:
             return;
         }
 
-        // Set environment variable for the running process
-        qputenv("PHONE_MAC_ADDRESS", mac.toUtf8());
-        LOG_INFO("PHONE_MAC_ADDRESS environment variable set to: " << mac);
-
-        // Update ~/.profile to persist the MAC address
-        QString homePath = QDir::homePath();
-        QString profilePath = homePath + "/.profile";
-        QFile profileFile(profilePath);
-        
-        // Read existing content
-        QString content;
-        if (profileFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            content = QString::fromUtf8(profileFile.readAll());
-            profileFile.close();
-        }
-
-        // Remove any existing PHONE_MAC_ADDRESS export
-        QRegularExpression exportRe("export PHONE_MAC_ADDRESS=.*\\n?");
-        content = content.remove(exportRe);
-
-        // Add new export at the end
-        if (!content.endsWith("\n")) {
-            content.append("\n");
-        }
-        content.append(QString("export PHONE_MAC_ADDRESS=%1\n").arg(mac));
-
-        // Write back to file
-        if (profileFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            profileFile.write(content.toUtf8());
-            profileFile.close();
-            LOG_INFO("Updated ~/.profile with PHONE_MAC_ADDRESS");
-        } else {
-            LOG_ERROR("Failed to write to ~/.profile");
-        }
+        // Save to application settings
+        m_settings->setValue("phone/mac_address", mac);
+        m_settings->sync();
+        LOG_INFO("Phone MAC address saved to settings: " << mac);
 
         m_phoneMacStatus = QStringLiteral("Updated MAC: ") + mac;
         emit phoneMacStatusChanged();
@@ -735,12 +718,12 @@ private slots:
             LOG_INFO("Already connected to the phone");
             return;
         }
-        QBluetoothAddress phoneAddress("00:00:00:00:00:00"); // Default address, will be overwritten if PHONE_MAC_ADDRESS is set
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        QBluetoothAddress phoneAddress("00:00:00:00:00:00"); // Default address
+        QString savedPhoneMac = m_settings->value("phone/mac_address").toString();
         
-        if (!env.value("PHONE_MAC_ADDRESS").isEmpty())
+        if (!savedPhoneMac.isEmpty())
         {
-            phoneAddress = QBluetoothAddress(env.value("PHONE_MAC_ADDRESS"));
+            phoneAddress = QBluetoothAddress(savedPhoneMac);
         }
         phoneSocket = new QBluetoothSocket(QBluetoothServiceInfo::L2capProtocol);
         connect(phoneSocket, &QBluetoothSocket::connected, this, [this]() {
@@ -1000,13 +983,12 @@ int main(int argc, char *argv[]) {
     AirPodsTrayApp *trayApp = new AirPodsTrayApp(debugMode, hideOnStart, &engine);
     engine.rootContext()->setContextProperty("airPodsTrayApp", trayApp);
 
-    // Expose PHONE_MAC_ADDRESS environment variable to QML for placeholder in settings
+    // Get phone MAC from settings
     {
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        QString phoneMacEnv = env.value("PHONE_MAC_ADDRESS", "");
-        engine.rootContext()->setContextProperty("PHONE_MAC_ADDRESS", phoneMacEnv);
-        // Initialize the visible status in the GUI
-        trayApp->updatePhoneMacStatus(phoneMacEnv.isEmpty() ? QStringLiteral("No phone MAC set") : phoneMacEnv);
+        QSettings settings("AirPodsTrayApp", "AirPodsTrayApp");
+        QString phoneMac = settings.value("phone/mac_address").toString();
+        engine.rootContext()->setContextProperty("PHONE_MAC_ADDRESS", phoneMac);
+        trayApp->updatePhoneMacStatus(phoneMac.isEmpty() ? QStringLiteral("No phone MAC set") : phoneMac);
     }
 
     engine.addImageProvider("qrcode", new QRCodeImageProvider());
