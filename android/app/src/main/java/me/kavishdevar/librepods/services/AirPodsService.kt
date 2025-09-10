@@ -17,6 +17,7 @@
  */
 
 @file:OptIn(ExperimentalEncodingApi::class)
+@file:Suppress("DEPRECATION")
 
 package me.kavishdevar.librepods.services
 
@@ -29,6 +30,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.appwidget.AppWidgetManager
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothSocket
@@ -41,6 +43,7 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Resources
+import android.graphics.Color
 import android.media.AudioManager
 import android.net.Uri
 import android.os.BatteryManager
@@ -315,6 +318,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
+    @SuppressLint("MissingPermission", "UnspecifiedRegisterReceiverFlag")
     override fun onCreate() {
         super.onCreate()
 
@@ -337,7 +341,14 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         ServiceManager.setService(this)
         startForegroundNotification()
-        initGestureDetector()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            initGestureDetector()
+        } else {
+            gestureDetector = null
+            config.headGestures = false
+            sharedPreferences.edit { putBoolean("head_gestures", false) }
+            Log.d("AirPodsService", "Head gestures disabled as device is running Android 9 or below")
+        }
 
         bleManager = BLEManager(this)
         bleManager.setAirPodsStatusListener(bleStatusListener)
@@ -345,63 +356,111 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         sharedPreferences = getSharedPreferences("settings", MODE_PRIVATE)
 
         with(sharedPreferences) {
-            val editor = edit()
+            edit {
+                if (!contains("conversational_awareness_pause_music")) putBoolean(
+                    "conversational_awareness_pause_music",
+                    false
+                )
+                if (!contains("personalized_volume")) putBoolean("personalized_volume", false)
+                if (!contains("automatic_ear_detection")) putBoolean(
+                    "automatic_ear_detection",
+                    true
+                )
+                if (!contains("long_press_nc")) putBoolean("long_press_nc", true)
+                if (!contains("off_listening_mode")) putBoolean("off_listening_mode", false)
+                if (!contains("show_phone_battery_in_widget")) putBoolean(
+                    "show_phone_battery_in_widget",
+                    true
+                )
+                if (!contains("single_anc")) putBoolean("single_anc", true)
+                if (!contains("long_press_transparency")) putBoolean(
+                    "long_press_transparency",
+                    true
+                )
+                if (!contains("conversational_awareness")) putBoolean(
+                    "conversational_awareness",
+                    true
+                )
+                if (!contains("relative_conversational_awareness_volume")) putBoolean(
+                    "relative_conversational_awareness_volume",
+                    true
+                )
+                if (!contains("long_press_adaptive")) putBoolean("long_press_adaptive", true)
+                if (!contains("loud_sound_reduction")) putBoolean("loud_sound_reduction", true)
+                if (!contains("long_press_off")) putBoolean("long_press_off", false)
+                if (!contains("volume_control")) putBoolean("volume_control", true)
+                if (!contains("head_gestures")) putBoolean("head_gestures", true)
+                if (!contains("disconnect_when_not_wearing")) putBoolean(
+                    "disconnect_when_not_wearing",
+                    false
+                )
 
-            if (!contains("conversational_awareness_pause_music")) editor.putBoolean("conversational_awareness_pause_music", false)
-            if (!contains("personalized_volume")) editor.putBoolean("personalized_volume", false)
-            if (!contains("automatic_ear_detection")) editor.putBoolean("automatic_ear_detection", true)
-            if (!contains("long_press_nc")) editor.putBoolean("long_press_nc", true)
-            if (!contains("off_listening_mode")) editor.putBoolean("off_listening_mode", false)
-            if (!contains("show_phone_battery_in_widget")) editor.putBoolean("show_phone_battery_in_widget", true)
-            if (!contains("single_anc")) editor.putBoolean("single_anc", true)
-            if (!contains("long_press_transparency")) editor.putBoolean("long_press_transparency", true)
-            if (!contains("conversational_awareness")) editor.putBoolean("conversational_awareness", true)
-            if (!contains("relative_conversational_awareness_volume")) editor.putBoolean("relative_conversational_awareness_volume", true)
-            if (!contains("long_press_adaptive")) editor.putBoolean("long_press_adaptive", true)
-            if (!contains("loud_sound_reduction")) editor.putBoolean("loud_sound_reduction", true)
-            if (!contains("long_press_off")) editor.putBoolean("long_press_off", false)
-            if (!contains("volume_control")) editor.putBoolean("volume_control", true)
-            if (!contains("head_gestures")) editor.putBoolean("head_gestures", true)
-            if (!contains("disconnect_when_not_wearing")) editor.putBoolean("disconnect_when_not_wearing", false)
+                // AirPods state-based takeover
+                if (!contains("takeover_when_disconnected")) putBoolean(
+                    "takeover_when_disconnected",
+                    true
+                )
+                if (!contains("takeover_when_idle")) putBoolean("takeover_when_idle", true)
+                if (!contains("takeover_when_music")) putBoolean("takeover_when_music", false)
+                if (!contains("takeover_when_call")) putBoolean("takeover_when_call", true)
 
-            // AirPods state-based takeover
-            if (!contains("takeover_when_disconnected")) editor.putBoolean("takeover_when_disconnected", true)
-            if (!contains("takeover_when_idle")) editor.putBoolean("takeover_when_idle", true)
-            if (!contains("takeover_when_music")) editor.putBoolean("takeover_when_music", false)
-            if (!contains("takeover_when_call")) editor.putBoolean("takeover_when_call", true)
+                // Phone state-based takeover
+                if (!contains("takeover_when_ringing_call")) putBoolean(
+                    "takeover_when_ringing_call",
+                    true
+                )
+                if (!contains("takeover_when_media_start")) putBoolean(
+                    "takeover_when_media_start",
+                    true
+                )
 
-            // Phone state-based takeover
-            if (!contains("takeover_when_ringing_call")) editor.putBoolean("takeover_when_ringing_call", true)
-            if (!contains("takeover_when_media_start")) editor.putBoolean("takeover_when_media_start", true)
+                if (!contains("adaptive_strength")) putInt("adaptive_strength", 51)
+                if (!contains("tone_volume")) putInt("tone_volume", 75)
+                if (!contains("conversational_awareness_volume")) putInt(
+                    "conversational_awareness_volume",
+                    43
+                )
 
-            if (!contains("adaptive_strength")) editor.putInt("adaptive_strength", 51)
-            if (!contains("tone_volume")) editor.putInt("tone_volume", 75)
-            if (!contains("conversational_awareness_volume")) editor.putInt("conversational_awareness_volume", 43)
+                if (!contains("textColor")) putLong("textColor", -1L)
 
-            if (!contains("textColor")) editor.putLong("textColor", -1L)
+                if (!contains("qs_click_behavior")) putString("qs_click_behavior", "cycle")
+                if (!contains("name")) putString("name", "AirPods")
+                if (!contains("ble_only_mode")) putBoolean("ble_only_mode", false)
 
-            if (!contains("qs_click_behavior")) editor.putString("qs_click_behavior", "cycle")
-            if (!contains("name")) editor.putString("name", "AirPods")
-            if (!contains("ble_only_mode")) editor.putBoolean("ble_only_mode", false)
+                if (!contains("left_single_press_action")) putString(
+                    "left_single_press_action",
+                    StemAction.defaultActions[StemPressType.SINGLE_PRESS]!!.name
+                )
+                if (!contains("right_single_press_action")) putString(
+                    "right_single_press_action",
+                    StemAction.defaultActions[StemPressType.SINGLE_PRESS]!!.name
+                )
+                if (!contains("left_double_press_action")) putString(
+                    "left_double_press_action",
+                    StemAction.defaultActions[StemPressType.DOUBLE_PRESS]!!.name
+                )
+                if (!contains("right_double_press_action")) putString(
+                    "right_double_press_action",
+                    StemAction.defaultActions[StemPressType.DOUBLE_PRESS]!!.name
+                )
+                if (!contains("left_triple_press_action")) putString(
+                    "left_triple_press_action",
+                    StemAction.defaultActions[StemPressType.TRIPLE_PRESS]!!.name
+                )
+                if (!contains("right_triple_press_action")) putString(
+                    "right_triple_press_action",
+                    StemAction.defaultActions[StemPressType.TRIPLE_PRESS]!!.name
+                )
+                if (!contains("left_long_press_action")) putString(
+                    "left_long_press_action",
+                    StemAction.defaultActions[StemPressType.LONG_PRESS]!!.name
+                )
+                if (!contains("right_long_press_action")) putString(
+                    "right_long_press_action",
+                    StemAction.defaultActions[StemPressType.LONG_PRESS]!!.name
+                )
 
-            if (!contains("left_single_press_action")) editor.putString("left_single_press_action",
-                StemAction.defaultActions[StemPressType.SINGLE_PRESS]!!.name)
-            if (!contains("right_single_press_action")) editor.putString("right_single_press_action",
-                StemAction.defaultActions[StemPressType.SINGLE_PRESS]!!.name)
-            if (!contains("left_double_press_action")) editor.putString("left_double_press_action",
-                StemAction.defaultActions[StemPressType.DOUBLE_PRESS]!!.name)
-            if (!contains("right_double_press_action")) editor.putString("right_double_press_action",
-                StemAction.defaultActions[StemPressType.DOUBLE_PRESS]!!.name)
-            if (!contains("left_triple_press_action")) editor.putString("left_triple_press_action",
-                StemAction.defaultActions[StemPressType.TRIPLE_PRESS]!!.name)
-            if (!contains("right_triple_press_action")) editor.putString("right_triple_press_action",
-                StemAction.defaultActions[StemPressType.TRIPLE_PRESS]!!.name)
-            if (!contains("left_long_press_action")) editor.putString("left_long_press_action",
-                StemAction.defaultActions[StemPressType.LONG_PRESS]!!.name)
-            if (!contains("right_long_press_action")) editor.putString("right_long_press_action",
-                StemAction.defaultActions[StemPressType.LONG_PRESS]!!.name)
-
-            editor.apply()
+            }
         }
 
         initializeConfig()
@@ -453,6 +512,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(ancModeReceiver, ancModeFilter, RECEIVER_EXPORTED)
         } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(ancModeReceiver, ancModeFilter)
         }
         val audioManager =
@@ -518,6 +578,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     RECEIVER_EXPORTED
                 )
             } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
                 registerReceiver(BatteryChangedIntentReceiver, batteryChangedIntentFilter)
             }
         }
@@ -598,6 +659,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(showIslandReceiver, showIslandIntentFilter, RECEIVER_EXPORTED)
         } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(showIslandReceiver, showIslandIntentFilter)
         }
 
@@ -610,6 +672,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             registerReceiver(connectionReceiver, deviceIntentFilter, RECEIVER_EXPORTED)
             registerReceiver(bluetoothReceiver, serviceIntentFilter, RECEIVER_EXPORTED)
         } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(connectionReceiver, deviceIntentFilter)
             registerReceiver(bluetoothReceiver, serviceIntentFilter)
         }
@@ -623,6 +686,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     bluetoothAdapter.getProfileProxy(
                         this,
                         object : BluetoothProfile.ServiceListener {
+                            @SuppressLint("NewApi")
                             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                                 if (profile == BluetoothProfile.A2DP) {
                                     val connectedDevices = proxy.connectedDevices
@@ -668,6 +732,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
+    @Suppress("unused")
     fun cameraOpened() {
         Log.d("AirPodsService", "Camera opened, gonna handle stem presses and take action if enabled")
         val isCameraShutterUsed = listOf(
@@ -904,7 +969,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     Log.d("AirPodsParser", "Connected device: ${device.mac}, info1: ${device.info1}, info2: ${device.info2})")
                 }
                 val newDevices = connectedDevices.filter { newDevice ->
-                    val notInOld = aacpManager.oldConnectedDevices?.none { oldDevice -> oldDevice.mac == newDevice.mac } ?: true
+                    val notInOld = aacpManager.oldConnectedDevices.none { oldDevice -> oldDevice.mac == newDevice.mac }
                     val notLocal = newDevice.mac != localMac
                     notInOld && notLocal
                 }
@@ -958,8 +1023,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private fun processEarDetectionChange(earDetection: ByteArray) {
-        var inEar = false
-        var inEarData = listOf(earDetectionNotification.status[0] == 0x00.toByte(), earDetectionNotification.status[1] == 0x00.toByte())
+        var inEar: Boolean
+        val inEarData = listOf(earDetectionNotification.status[0] == 0x00.toByte(), earDetectionNotification.status[1] == 0x00.toByte())
         var justEnabledA2dp = false
         earDetectionNotification.setStatus(earDetection)
         if (config.earDetectionEnabled) {
@@ -1008,10 +1073,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             Log.d("AirPodsParser", "inEarData: ${inEarData.sorted()}, newInEarData: ${newInEarData.sorted()}")
 
             if (newInEarData.sorted() != inEarData.sorted()) {
-                inEarData = newInEarData
-                if (inEar == true) {
+                if (inEar) {
                     if (!justEnabledA2dp) {
-                        justEnabledA2dp = false
                         MediaController.sendPlay()
                         MediaController.iPausedTheMedia = false
                     }
@@ -1178,7 +1241,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    private fun logPacket(packet: ByteArray, source: String) {
+    private fun logPacket(packet: ByteArray, @Suppress("SameParameterValue") source: String) {
         val packetHex = packet.joinToString(" ") { "%02X".format(it) }
         val logEntry = "$source: $packetHex"
 
@@ -1207,10 +1270,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    fun getPacketLogs(): Set<String> {
-        return inMemoryLogs.toSet()
-    }
-
     private fun clearPacketLogs() {
         synchronized(inMemoryLogs) {
             inMemoryLogs.clear()
@@ -1232,7 +1291,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     private var isInCall = false
     private var callNumber: String? = null
 
-    @RequiresApi(Build.VERSION_CODES.Q)
     private fun initGestureDetector() {
         if (gestureDetector == null) {
             gestureDetector = GestureDetector(this)
@@ -1296,11 +1354,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    fun setPhoneBatteryInWidget(enabled: Boolean) {
-        widgetMobileBatteryEnabled = enabled
-        updateBattery()
-    }
-
     @OptIn(ExperimentalMaterial3Api::class)
     fun startForegroundNotification() {
         val disconnectedNotificationChannel = NotificationChannel(
@@ -1322,7 +1375,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         ).apply {
             description = "Notifications about problems connecting to AirPods protocol"
             enableLights(true)
-            lightColor = android.graphics.Color.RED
+            lightColor = Color.RED
             enableVibration(true)
         }
 
@@ -1609,7 +1662,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         batteryList: List<Battery>? = null
     ) {
         val notificationManager = getSystemService(NotificationManager::class.java)
-        var updatedNotification: Notification? = null
+        var updatedNotification: Notification?
 
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -1695,7 +1748,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
     fun handleIncomingCall() {
         if (isInCall) return
         if (config.headGestures) {
@@ -1712,9 +1764,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
     }
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @RequiresApi(Build.VERSION_CODES.Q)
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun testHeadGestures(): Boolean {
         return suspendCancellableCoroutine { continuation ->
             gestureDetector?.startDetection(doNotStop = true) { accepted ->
@@ -1801,7 +1852,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                 .appendPath(applicationContext.resources.getResourceTypeName(resId))
                 .appendPath(applicationContext.resources.getResourceEntryName(resId))
                 .build()
-        } catch (e: Resources.NotFoundException) {
+        } catch (_: Resources.NotFoundException) {
             null
         }
     }
@@ -1821,7 +1872,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     @Suppress("PrivatePropertyName")
     private val ACTION_ASI_UPDATE_BLUETOOTH_DATA = "batterywidget.impl.action.update_bluetooth_data"
 
-    @Suppress("MissingPermission")
+    @Suppress("MissingPermission", "unused")
     fun broadcastBatteryInformation() {
         if (device == null) return
 
@@ -1848,13 +1899,13 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         )
 
         // Broadcast vendor-specific event
-        val intent = Intent(android.bluetooth.BluetoothHeadset.ACTION_VENDOR_SPECIFIC_HEADSET_EVENT).apply {
-            putExtra(android.bluetooth.BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD, VENDOR_SPECIFIC_HEADSET_EVENT_IPHONEACCEV)
-            putExtra(android.bluetooth.BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD_TYPE, android.bluetooth.BluetoothHeadset.AT_CMD_TYPE_SET)
-            putExtra(android.bluetooth.BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS, arguments)
+        val intent = Intent(BluetoothHeadset.ACTION_VENDOR_SPECIFIC_HEADSET_EVENT).apply {
+            putExtra(BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD, VENDOR_SPECIFIC_HEADSET_EVENT_IPHONEACCEV)
+            putExtra(BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD_TYPE, BluetoothHeadset.AT_CMD_TYPE_SET)
+            putExtra(BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS, arguments)
             putExtra(BluetoothDevice.EXTRA_DEVICE, device)
             putExtra(BluetoothDevice.EXTRA_NAME, device?.name)
-            addCategory("${android.bluetooth.BluetoothHeadset.VENDOR_SPECIFIC_HEADSET_EVENT_COMPANY_ID_CATEGORY}.$APPLE")
+            addCategory("${BluetoothHeadset.VENDOR_SPECIFIC_HEADSET_EVENT_COMPANY_ID_CATEGORY}.$APPLE")
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -2211,13 +2262,12 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         throw lastException ?: IllegalStateException(errorMessage)
     }
 
-    @RequiresApi(Build.VERSION_CODES.R)
     @SuppressLint("MissingPermission", "UnspecifiedRegisterReceiverFlag")
     fun connectToSocket(device: BluetoothDevice) {
         Log.d("AirPodsService", "<LogCollector:Start> Connecting to socket")
         HiddenApiBypass.addHiddenApiExemptions("Landroid/bluetooth/BluetoothSocket;")
         val uuid: ParcelUuid = ParcelUuid.fromString("74ec2172-0bad-4d01-8f77-997b2be0722a")
-        if (isConnectedLocally != true && !CrossDevice.isAvailable) {
+        if (!isConnectedLocally && !CrossDevice.isAvailable) {
             socket = try {
                 createBluetoothSocket(device, uuid)
             } catch (e: Exception) {
@@ -2284,11 +2334,11 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
                         setupStemActions()
 
-                        while (socket.isConnected == true) {
+                        while (socket.isConnected) {
                             socket.let {
                                 val buffer = ByteArray(1024)
                                 val bytesRead = it.inputStream.read(buffer)
-                                var data: ByteArray = byteArrayOf()
+                                var data: ByteArray
                                 if (bytesRead > 0) {
                                     data = buffer.copyOfRange(0, bytesRead)
                                     sendBroadcast(Intent(AirPodsNotifications.AIRPODS_DATA).apply {
@@ -2367,6 +2417,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     val conversationAwarenessNotification =
         AirPodsNotifications.ConversationalAwarenessNotification()
 
+    @Suppress("unused")
     fun setEarDetection(enabled: Boolean) {
         if (config.earDetectionEnabled != enabled) {
             config.earDetectionEnabled = enabled
@@ -2563,17 +2614,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         isHeadTrackingActive = false
     }
 
-    fun shouldTakeOverBasedOnAirPodsState(connectionState: String): Boolean {
-        if (CrossDevice.isAvailable) return true
-
-        return when (connectionState) {
-            "Disconnected" -> config.takeoverWhenDisconnected
-            "Idle" -> config.takeoverWhenIdle
-            "Music" -> config.takeoverWhenMusic
-            "Call", "Ringing", "Hanging Up" -> config.takeoverWhenCall
-            else -> false
-        }
-    }
 }
 
 private fun Int.dpToPx(): Int {

@@ -21,7 +21,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 
-@RequiresApi(Build.VERSION_CODES.Q)
 class GestureDetector(
     private val airPodsService: AirPodsService
 ) {

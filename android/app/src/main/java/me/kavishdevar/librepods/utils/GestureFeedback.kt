@@ -12,8 +12,7 @@ import androidx.annotation.RequiresApi
 import me.kavishdevar.librepods.R
 import java.util.concurrent.atomic.AtomicBoolean
 
-@RequiresApi(Build.VERSION_CODES.Q)
-class GestureFeedback(private val context: Context) {
+class GestureFeedback(context: Context) {
 
     private val TAG = "GestureFeedback"
 
@@ -25,8 +24,7 @@ class GestureFeedback(private val context: Context) {
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setFlags(AudioAttributes.FLAG_LOW_LATENCY or
-                         AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                 .build()
         )
         .build()
