@@ -21,12 +21,9 @@
 package me.kavishdevar.librepods.utils
 
 import android.util.Log
-import me.kavishdevar.librepods.utils.AACPManager.Companion.ControlCommandIdentifiers.entries
-import me.kavishdevar.librepods.utils.AACPManager.Companion.StemPressBudType.entries
-import me.kavishdevar.librepods.utils.AACPManager.Companion.StemPressType.entries
-import kotlin.io.encoding.ExperimentalEncodingApi
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Manager class for Apple Accessory Communication Protocol (AACP)
@@ -50,7 +47,13 @@ class AACPManager {
             const val PROXIMITY_KEYS_REQ: Byte = 0x30
             const val PROXIMITY_KEYS_RSP: Byte = 0x31
             const val STEM_PRESS: Byte = 0x19
-            const val EQ_SETTINGS: Byte = 0x35
+            const val EQ_DATA: Byte = 0x53
+            const val CONNECTED_DEVICES: Byte = 0x2E // TiPi 1
+            const val AUDIO_SOURCE: Byte = 0x0E // TiPi 2
+            const val SMART_ROUTING: Byte = 0x10
+            const val TIPI_3: Byte = 0x0C // Don't know this one
+            const val SMART_ROUTING_RESP: Byte = 0x11
+            const val SEND_CONNECTED_MAC: Byte = 0x14
         }
 
         private val HEADER_BYTES = byteArrayOf(0x04, 0x00, 0x04, 0x00)
@@ -78,7 +81,7 @@ class AACPManager {
             }
         }
 
-//        @Suppress("unused")
+        //        @Suppress("unused")
         enum class ControlCommandIdentifiers(val value: Byte) {
             MIC_MODE(0x01),
             BUTTON_SEND_MODE(0x05),
@@ -109,7 +112,9 @@ class AACPManager {
             SIRI_MULTITONE_CONFIG(0x32),
             HEARING_ASSIST_CONFIG(0x33),
             ALLOW_OFF_OPTION(0x34),
-            STEM_CONFIG(0x39);
+            STEM_CONFIG(0x39),
+            OWNS_CONNECTION(0x06);
+
             companion object {
                 fun fromByte(byte: Byte): ControlCommandIdentifiers? =
                     entries.find { it.value == byte }
@@ -122,7 +127,8 @@ class AACPManager {
 
             companion object {
                 fun fromByte(byte: Byte): ProximityKeyType =
-                    ProximityKeyType.entries.find { it.value == byte }?: throw IllegalArgumentException("Unknown ProximityKeyType: $byte")
+                    ProximityKeyType.entries.find { it.value == byte }
+                        ?: throw IllegalArgumentException("Unknown ProximityKeyType: $byte")
             }
         }
 
@@ -147,15 +153,55 @@ class AACPManager {
                     entries.find { it.value == byte }
             }
         }
+
+        enum class AudioSourceType(val value: Byte) {
+            NONE(0x00),
+            CALL(0x01),
+            MEDIA(0x02);
+
+            companion object {
+                fun fromByte(byte: Byte): AudioSourceType? =
+                    entries.find { it.value == byte }
+            }
+        }
+
+        data class AudioSource(
+            val mac: String,
+            val type: AudioSourceType
+        )
+
+        data class ConnectedDevice(
+            val mac: String,
+            val info1: Byte,
+            val info2: Byte
+        )
     }
-    var controlCommandStatusList: MutableList<ControlCommandStatus> = mutableListOf<ControlCommandStatus>()
-    var controlCommandListeners: MutableMap<ControlCommandIdentifiers, MutableList<ControlCommandListener>> = mutableMapOf()
+
+    var controlCommandStatusList: MutableList<ControlCommandStatus> =
+        mutableListOf<ControlCommandStatus>()
+    var controlCommandListeners: MutableMap<ControlCommandIdentifiers, MutableList<ControlCommandListener>> =
+        mutableMapOf()
+
+    var owns: Boolean = false
+        private set
+
+    var oldConnectedDevices: List<ConnectedDevice> = listOf()
+        private set
+        
+    var connectedDevices: List<ConnectedDevice> = listOf()
+        private set
+
+    var audioSource: AudioSource? = null
+        private set
 
     fun getControlCommandStatus(identifier: ControlCommandIdentifiers): ControlCommandStatus? {
         return controlCommandStatusList.find { it.identifier == identifier }
     }
 
-    private fun setControlCommandStatusValue(identifier: ControlCommandIdentifiers, value: ByteArray) {
+    private fun setControlCommandStatusValue(
+        identifier: ControlCommandIdentifiers,
+        value: ByteArray
+    ) {
         val existingStatus = getControlCommandStatus(identifier)
         if (existingStatus == value) {
             controlCommandStatusList.remove(existingStatus)
@@ -167,6 +213,10 @@ class AACPManager {
             listener.onControlCommandReceived(ControlCommand(identifier.value, value))
         }
         controlCommandStatusList.add(ControlCommandStatus(identifier, value))
+
+        if (identifier == ControlCommandIdentifiers.OWNS_CONNECTION) {
+            owns = value.isNotEmpty() && value[0] == 0x01.toByte()
+        }
     }
 
     interface PacketCallback {
@@ -179,6 +229,11 @@ class AACPManager {
         fun onUnknownPacketReceived(packet: ByteArray)
         fun onProximityKeysReceived(proximityKeys: ByteArray)
         fun onStemPressReceived(stemPress: ByteArray)
+        fun onAudioSourceReceived(audioSource: ByteArray)
+        fun onOwnershipChangeReceived(owns: Boolean)
+        fun onConnectedDevicesReceived(connectedDevices: List<ConnectedDevice>)
+        fun onOwnershipToFalseRequest(reasonReverseTapped: Boolean)
+        fun onShowNearbyUI()
     }
 
     fun parseStemPressResponse(data: ByteArray): Pair<StemPressType, StemPressBudType> {
@@ -189,8 +244,10 @@ class AACPManager {
         if (data[4] != Opcodes.STEM_PRESS) {
             throw IllegalArgumentException("Data array does not start with STEM_PRESS opcode")
         }
-        val type = StemPressType.fromByte(data[6]) ?: throw IllegalArgumentException("Unknown Stem Press Type: ${data[5]}")
-        val bud = StemPressBudType.fromByte(data[7]) ?: throw IllegalArgumentException("Unknown Stem Press Bud Type: ${data[6]}")
+        val type = StemPressType.fromByte(data[6])
+            ?: throw IllegalArgumentException("Unknown Stem Press Type: ${data[5]}")
+        val bud = StemPressBudType.fromByte(data[7])
+            ?: throw IllegalArgumentException("Unknown Stem Press Bud Type: ${data[6]}")
         return Pair(type, bud)
     }
 
@@ -198,7 +255,10 @@ class AACPManager {
         fun onControlCommandReceived(controlCommand: ControlCommand)
     }
 
-    fun registerControlCommandListener(identifier: ControlCommandIdentifiers, callback: ControlCommandListener) {
+    fun registerControlCommandListener(
+        identifier: ControlCommandIdentifiers,
+        callback: ControlCommandListener
+    ) {
         controlCommandListeners.getOrPut(identifier) { mutableListOf() }.add(callback)
     }
 
@@ -249,7 +309,10 @@ class AACPManager {
     }
 
     fun sendControlCommand(identifier: Byte, value: Boolean): Boolean {
-        val controlPacket = createControlCommandPacket(identifier, if (value) byteArrayOf(0x01) else byteArrayOf(0x02))
+        val controlPacket = createControlCommandPacket(
+            identifier,
+            if (value) byteArrayOf(0x01) else byteArrayOf(0x02)
+        )
         setControlCommandStatusValue(
             ControlCommandIdentifiers.fromByte(identifier) ?: return false,
             if (value) byteArrayOf(0x01) else byteArrayOf(0x02)
@@ -267,7 +330,10 @@ class AACPManager {
     }
 
     fun parseProximityKeysResponse(data: ByteArray): Map<ProximityKeyType, ByteArray> {
-        Log.d(TAG, "Parsing Proximity Keys Response: ${data.joinToString(" ") { "%02X".format(it) }}")
+        Log.d(
+            TAG,
+            "Parsing Proximity Keys Response: ${data.joinToString(" ") { "%02X".format(it) }}"
+        )
         if (data.size < 4) {
             throw IllegalArgumentException("Data array too short to parse Proximity Keys Response")
         }
@@ -293,7 +359,12 @@ class AACPManager {
             System.arraycopy(data, offset, key, 0, keyLength)
             keys[ProximityKeyType.fromByte(keyType)] = key
             offset += keyLength
-            Log.d(TAG, "Parsed Proximity Key: Type: ${keyType}, Length: $keyLength, Key: ${key.joinToString(" ") { "%02X".format(it) }}")
+            Log.d(
+                TAG,
+                "Parsed Proximity Key: Type: ${keyType}, Length: $keyLength, Key: ${
+                    key.joinToString(" ") { "%02X".format(it) }
+                }"
+            )
         }
         return keys
     }
@@ -312,11 +383,21 @@ class AACPManager {
     @OptIn(ExperimentalStdlibApi::class)
     fun receivePacket(packet: ByteArray) {
         if (!packet.toHexString().startsWith("04000400")) {
-            Log.w(TAG, "Received packet does not start with expected header: ${packet.joinToString(" ") { "%02X".format(it) }}")
+            Log.w(
+                TAG,
+                "Received packet does not start with expected header: ${
+                    packet.joinToString(" ") {
+                        "%02X".format(it)
+                    }
+                }"
+            )
             return
         }
         if (packet.size < 6) {
-            Log.w(TAG, "Received packet too short: ${packet.joinToString(" ") { "%02X".format(it) }}")
+            Log.w(
+                TAG,
+                "Received packet too short: ${packet.joinToString(" ") { "%02X".format(it) }}"
+            )
             return
         }
 
@@ -326,50 +407,111 @@ class AACPManager {
             Opcodes.BATTERY_INFO -> {
                 callback?.onBatteryInfoReceived(packet)
             }
+
             Opcodes.CONTROL_COMMAND -> {
                 val controlCommand = ControlCommand.fromByteArray(packet)
                 setControlCommandStatusValue(
                     ControlCommandIdentifiers.fromByte(controlCommand.identifier) ?: return,
                     controlCommand.value
                 )
-                Log.d(TAG, "Control command received: ${controlCommand.identifier.toHexString()} - ${controlCommand.value.joinToString(" ") { "%02X".format(it) }}")
-                Log.d(TAG, "Control command list is now: ${
-                    controlCommandStatusList.joinToString(", ") { "${it.identifier.name} (${it.identifier.value.toHexString()}) - ${it.value.joinToString(" ") { "%02X".format(it) }}" }
+                Log.d(
+                    TAG,
+                    "Control command received: ${controlCommand.identifier.toHexString()} - ${
+                        controlCommand.value.joinToString(" ") { "%02X".format(it) }
+                    }"
+                )
+                Log.d(
+                    TAG, "Control command list is now: ${
+                    controlCommandStatusList.joinToString(", ") {
+                        "${it.identifier.name} (${it.identifier.value.toHexString()}) - ${
+                            it.value.joinToString(
+                                " "
+                            ) { "%02X".format(it) }
+                        }"
+                    }
                 }")
 
-                val controlCommandIdentifier = ControlCommandIdentifiers.fromByte(controlCommand.identifier)
+                val controlCommandIdentifier =
+                    ControlCommandIdentifiers.fromByte(controlCommand.identifier)
                 if (controlCommandIdentifier != null) {
                     controlCommandListeners[controlCommandIdentifier]?.forEach { listener ->
                         listener.onControlCommandReceived(controlCommand)
                     }
                 } else {
-                    Log.w(TAG, "Unknown control command identifier: ${controlCommand.identifier.toHexString()}")
+                    Log.w(
+                        TAG,
+                        "Unknown control command identifier: ${controlCommand.identifier.toHexString()}"
+                    )
+                }
+
+                if (controlCommandIdentifier == ControlCommandIdentifiers.OWNS_CONNECTION) {
+                    callback?.onOwnershipChangeReceived(owns)
                 }
 
                 callback?.onControlCommandReceived(packet)
             }
+
             Opcodes.EAR_DETECTION -> {
                 callback?.onEarDetectionReceived(packet)
             }
+
             Opcodes.CONVERSATION_AWARENESS -> {
                 callback?.onConversationAwarenessReceived(packet)
             }
+
             Opcodes.DEVICE_METADATA -> {
                 callback?.onDeviceMetadataReceived(packet)
             }
+
             Opcodes.HEADTRACKING -> {
                 if (packet.size < 70) {
-                    Log.w(TAG, "Received HEADTRACKING packet too short: ${packet.joinToString(" ") { "%02X".format(it) }}")
+                    Log.w(
+                        TAG,
+                        "Received HEADTRACKING packet too short: ${
+                            packet.joinToString(" ") {
+                                "%02X".format(it)
+                            }
+                        }"
+                    )
                     return
                 }
                 callback?.onHeadTrackingReceived(packet)
             }
+
             Opcodes.PROXIMITY_KEYS_RSP -> {
                 callback?.onProximityKeysReceived(packet)
             }
+
             Opcodes.STEM_PRESS -> {
                 callback?.onStemPressReceived(packet)
             }
+
+            Opcodes.AUDIO_SOURCE -> {
+                try {
+                    val (mac, type) = parseAudioSourceResponse(packet)
+                    audioSource = AudioSource(mac, type)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing audio source response: ${e.message}")
+                }
+                callback?.onAudioSourceReceived(packet)
+            }
+
+            Opcodes.CONNECTED_DEVICES -> {
+                oldConnectedDevices = connectedDevices
+                connectedDevices = parseConnectedDevicesResponse(packet)
+                callback?.onConnectedDevicesReceived(connectedDevices)
+            }
+
+            Opcodes.SMART_ROUTING_RESP -> {
+                val packetString = packet.decodeToString()
+                if (packetString.contains("SetOwnershipToFalse")) {
+                    callback?.onOwnershipToFalseRequest(packetString.contains("ReverseBannerTapped"))
+                }
+                if (packetString.contains("ShowNearbyUI")) {
+                    callback?.onShowNearbyUI()
+                }
+            }
+
             else -> {
                 callback?.onUnknownPacketReceived(packet)
             }
@@ -412,7 +554,28 @@ class AACPManager {
     fun createStartHeadTrackingPacket(): ByteArray {
         val opcode = byteArrayOf(Opcodes.HEADTRACKING, 0x00)
         val data = byteArrayOf(
-            0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x08, 0xA1.toByte(), 0x02, 0x42, 0x0B, 0x08, 0x0E, 0x10, 0x02, 0x1A, 0x05, 0x01, 0x40, 0x9C.toByte(), 0x00, 0x00,
+            0x00,
+            0x00,
+            0x10,
+            0x00,
+            0x10,
+            0x00,
+            0x08,
+            0xA1.toByte(),
+            0x02,
+            0x42,
+            0x0B,
+            0x08,
+            0x0E,
+            0x10,
+            0x02,
+            0x1A,
+            0x05,
+            0x01,
+            0x40,
+            0x9C.toByte(),
+            0x00,
+            0x00,
         )
         return opcode + data
     }
@@ -420,7 +583,27 @@ class AACPManager {
     fun createAlternateStartHeadTrackingPacket(): ByteArray {
         val opcode = byteArrayOf(Opcodes.HEADTRACKING, 0x00)
         val data = byteArrayOf(
-            0x00, 0x00, 0x10, 0x00, 0x0F, 0x00, 0x08, 0x73, 0x42, 0x0B, 0x08, 0x10, 0x10, 0x02, 0x1A, 0x05, 0x01, 0x40, 0x9C.toByte(), 0x00, 0x00
+            0x00,
+            0x00,
+            0x10,
+            0x00,
+            0x0F,
+            0x00,
+            0x08,
+            0x73,
+            0x42,
+            0x0B,
+            0x08,
+            0x10,
+            0x10,
+            0x02,
+            0x1A,
+            0x05,
+            0x01,
+            0x40,
+            0x9C.toByte(),
+            0x00,
+            0x00
         )
         return opcode + data
     }
@@ -432,7 +615,29 @@ class AACPManager {
     fun createStopHeadTrackingPacket(): ByteArray {
         val opcode = byteArrayOf(Opcodes.HEADTRACKING, 0x00)
         val data = byteArrayOf(
-            0x00, 0x00, 0x10, 0x00, 0x11, 0x00, 0x08, 0x7E, 0x10, 0x02, 0x42, 0x0B, 0x08, 0x4E, 0x10, 0x02, 0x1A, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00
+            0x00,
+            0x00,
+            0x10,
+            0x00,
+            0x11,
+            0x00,
+            0x08,
+            0x7E,
+            0x10,
+            0x02,
+            0x42,
+            0x0B,
+            0x08,
+            0x4E,
+            0x10,
+            0x02,
+            0x1A,
+            0x05,
+            0x01,
+            0x00,
+            0x00,
+            0x00,
+            0x00
         )
         return opcode + data
     }
@@ -440,7 +645,27 @@ class AACPManager {
     fun createAlternateStopHeadTrackingPacket(): ByteArray {
         val opcode = byteArrayOf(Opcodes.HEADTRACKING, 0x00)
         val data = byteArrayOf(
-            0x00, 0x00, 0x10, 0x00, 0x0F, 0x00, 0x08, 0x75, 0x42, 0x0B, 0x08, 0x10, 0x10, 0x02, 0x1A, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00
+            0x00,
+            0x00,
+            0x10,
+            0x00,
+            0x0F,
+            0x00,
+            0x08,
+            0x75,
+            0x42,
+            0x0B,
+            0x08,
+            0x10,
+            0x10,
+            0x02,
+            0x1A,
+            0x05,
+            0x01,
+            0x00,
+            0x00,
+            0x00,
+            0x00
         )
         return opcode + data
     }
@@ -462,6 +687,254 @@ class AACPManager {
         return packet
     }
 
+    fun sendMediaInformationNewDevice(selfMacAddress: String, targetMacAddress: String): Boolean {
+        if (selfMacAddress.length != 17 || !selfMacAddress.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")) || targetMacAddress.length != 17 || !targetMacAddress.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))) {
+            throw IllegalArgumentException("MAC address must be 6 bytes")
+        }
+        Log.d(TAG, "SELFMAC: ${selfMacAddress}, TARGETMAC: ${targetMacAddress}")
+        Log.d(TAG, "Sending Media Information packet to ${targetMacAddress}")
+        return sendDataPacket(createMediaInformationNewDevicePacket(selfMacAddress, targetMacAddress))
+    }
+
+    fun createMediaInformationNewDevicePacket(selfMacAddress: String, targetMacAddress: String): ByteArray {
+        val opcode = byteArrayOf(Opcodes.SMART_ROUTING, 0x00)
+        val buffer = ByteBuffer.allocate(112)
+        buffer.put(
+            targetMacAddress.split(":").map { it.toInt(16).toByte() }.toByteArray().reversedArray()
+        )
+        buffer.put(byteArrayOf(0x68, 0x00))
+        buffer.put(byteArrayOf(0x01, 0xE5.toByte(), 0x4A))
+        buffer.put("playingApp".toByteArray())
+        buffer.put(0x42)
+        buffer.put("NA".toByteArray())
+        buffer.put(0x52)
+        buffer.put("hostStreamingState".toByteArray())
+        buffer.put(0x42)
+        buffer.put("NO".toByteArray())
+        buffer.put(0x49)
+        buffer.put("btAddress".toByteArray())
+        buffer.put(0x51)
+        buffer.put(selfMacAddress.toByteArray())
+        buffer.put(0x46)
+        buffer.put("btName".toByteArray())
+        buffer.put(0x43)
+        buffer.put("And".toByteArray())
+        buffer.put(0x58)
+        buffer.put("otherDevice".toByteArray())
+        buffer.put("AudioCategory".toByteArray())
+        buffer.put(byteArrayOf(0x30, 0x64))
+
+        return opcode + buffer.array()
+    }
+
+    fun sendHijackRequest(selfMacAddress: String): Boolean {
+        if (selfMacAddress.length != 17 || !selfMacAddress.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))) {
+            throw IllegalArgumentException("MAC address must be 6 bytes")
+        }
+        var success = false
+        for (connectedDevice in connectedDevices) {
+            if (connectedDevice.mac != selfMacAddress) {
+                Log.d(TAG, "Sending Hijack Request packet to ${connectedDevice.mac}")
+                success = sendDataPacket(createHijackRequestPacket(connectedDevice.mac)) && success
+            }
+        }
+        return success
+    }
+
+    fun createHijackRequestPacket(targetMacAddress: String): ByteArray {
+        val opcode = byteArrayOf(Opcodes.SMART_ROUTING, 0x00)
+        val buffer = ByteBuffer.allocate(106)
+        buffer.put(
+            targetMacAddress.split(":").map { it.toInt(16).toByte() }.toByteArray().reversedArray()
+        )
+        // 620001E54A6C6F63616C73636F7265306446726561736F6E4848696A61636B763251617564696F526F7574696E6753636F7265312D015F617564696F526F7574696E675365744F776E657273686970546F46616C7365014B72656D6F746573636F7265A5
+
+        buffer.put(byteArrayOf(0x62, 0x00))
+        buffer.put(byteArrayOf(0x01, 0xE5.toByte()))
+        buffer.put(0x4A)
+        buffer.put("localscore".toByteArray())
+        buffer.put(byteArrayOf(0x30, 0x64))
+        buffer.put(0x46)
+        buffer.put("reason".toByteArray())
+        buffer.put(0x48)
+        buffer.put("Hijackv2".toByteArray())
+        buffer.put(0x51)
+        buffer.put("audioRoutingScore".toByteArray())
+        buffer.put(byteArrayOf(0x31, 0x2D, 0x01, 0x5F))
+        buffer.put("audioRoutingSetOwnershipToFalse".toByteArray())
+        buffer.put(0x01)
+        buffer.put(0x4B)
+        buffer.put("remotescore".toByteArray())
+        buffer.put(0xA5.toByte())
+
+        return opcode + buffer.array()
+    }
+
+    fun sendMediaInformataion(selfMacAddress: String, streamingState: Boolean = false): Boolean {
+        if (selfMacAddress.length != 17 || !selfMacAddress.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))) {
+            throw IllegalArgumentException("MAC address must be 6 bytes")
+        }
+	    Log.d(TAG, "SELFMAC: ${selfMacAddress}")
+        val targetMac = connectedDevices.find { it.mac != selfMacAddress }?.mac
+        Log.d(TAG, "Sending Media Information packet to ${targetMac ?: "unknown device"}")
+        return sendDataPacket(
+            createMediaInformationPacket(
+                selfMacAddress,
+                targetMac ?: return false,
+                streamingState
+            )
+        )
+    }
+
+    fun createMediaInformationPacket(
+        selfMacAddress: String,
+        targetMacAddress: String,
+        streamingState: Boolean = true
+    ): ByteArray {
+        val opcode = byteArrayOf(Opcodes.SMART_ROUTING, 0x00)
+        val buffer = ByteBuffer.allocate(134)
+        buffer.put(
+            targetMacAddress.split(":").map { it.toInt(16).toByte() }.toByteArray().reversedArray()
+        )
+        buffer.put(
+            byteArrayOf(
+                0x7E,
+                0x00
+            )
+        ) // something to do with the length, can't confirm, but changing causes airpods to soft reset
+        buffer.put(byteArrayOf(0x01, 0xE5.toByte(), 0x4A)) // unknown, constant
+        buffer.put("PlayingApp".toByteArray())
+        buffer.put(byteArrayOf(0x56)) // 'V', seems like a identifier or a separator
+        buffer.put("com.google.ios.youtube".toByteArray()) // package name, hardcoding for now, aforementioned reason
+        buffer.put(byteArrayOf(0x52)) // 'R'
+        buffer.put("HostStreamingState".toByteArray())
+        buffer.put(byteArrayOf(0x42)) // 'B'
+        buffer.put((if (streamingState) "YES" else "NO").toByteArray()) // streaming state
+        buffer.put(0x49) // 'I'
+        buffer.put("btAddress".toByteArray()) // self MAC
+        buffer.put(0x51) // 'Q'
+        buffer.put(selfMacAddress.toByteArray()) // self MAC
+        buffer.put("btName".toByteArray()) // self name
+        buffer.put(0x44) // 'D'
+        buffer.put("iPho".toByteArray()) // if set to iPad, shows "Moved to iPad, but most likely we're running on a phone. setting to anything else of the same length will show iPhone instead.
+        buffer.put(0x58) // 'X'
+        buffer.put("otherDevice".toByteArray())
+        buffer.put("AudioCategory".toByteArray())
+        buffer.put(byteArrayOf(0x31, 0x2D, 0x01))
+
+        return opcode+buffer.array()
+    }
+
+    fun sendSmartRoutingShowUI(selfMacAddress: String): Boolean {
+        if (selfMacAddress.length != 17 || !selfMacAddress.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))) {
+            throw IllegalArgumentException("MAC address must be 6 bytes")
+        }
+
+        val targetMac = connectedDevices.find { it.mac != selfMacAddress }?.mac
+        if (targetMac == null) {
+            Log.w(TAG, "Cannot send Smart Routing Show UI packet: No connected device found")
+            return false
+        }
+        Log.d(TAG, "Sending Smart Routing Show UI packet to $targetMac")
+        return sendDataPacket(createSmartRoutingShowUIPacket(targetMac))
+    }
+
+    fun createSmartRoutingShowUIPacket(targetMacAddress: String): ByteArray {
+        val opcode = byteArrayOf(Opcodes.SMART_ROUTING, 0x00)
+	    val buffer = ByteBuffer.allocate(134)
+        buffer.put(
+            targetMacAddress.split(":").map { it.toInt(16).toByte() }.toByteArray().reversedArray()
+        )
+        buffer.put(byteArrayOf(0x7E, 0x00))
+        buffer.put(byteArrayOf(0x01, 0xE6.toByte(), 0x5B))
+        buffer.put("SmartRoutingKeyShowNearbyUI".toByteArray())
+        buffer.put(0x01) // separator?
+        buffer.put(0x4A)
+        buffer.put("localscore".toByteArray())
+        buffer.put(0x31, 0x2D)
+        buffer.put(0x01)
+        buffer.put(0x46)
+        buffer.put("reasonHhijackv2".toByteArray())
+        buffer.put(0x51.toByte())
+        buffer.put("audioRoutingScore".toByteArray())
+        buffer.put(0xA2.toByte())
+        buffer.put(0x5F)
+        buffer.put("audioRoutingSetOwnershipToFalse".toByteArray())
+        buffer.put(0x01)
+        buffer.put(0x4B)
+        buffer.put("remotescore".toByteArray())
+        buffer.put(0xA2.toByte())
+        return opcode + buffer.array()
+    }
+
+    fun sendHijackReversed(selfMacAddress: String): Boolean {
+        var success = false
+        for (connectedDevice in connectedDevices) {
+            if (connectedDevice.mac != selfMacAddress) {
+                Log.d(TAG, "Sending Hijack Reversed packet to ${connectedDevice.mac}")
+                success = sendDataPacket(createHijackReversedPacket(connectedDevice.mac)) && success
+            }
+        }
+        return success
+    }
+
+    fun createHijackReversedPacket(targetMacAddress: String): ByteArray {
+        val opcode = byteArrayOf(Opcodes.SMART_ROUTING, 0x00)
+        val buffer = ByteBuffer.allocate(97)
+        buffer.put(
+            targetMacAddress.split(":").map { it.toInt(16).toByte() }.toByteArray().reversedArray()
+        )
+        buffer.put(byteArrayOf(0x59, 0x00))
+        buffer.put(byteArrayOf(0x01, 0xE3.toByte()))
+        buffer.put(0x5F)
+        buffer.put("audioRoutingSetOwnershipToFalse".toByteArray())
+        buffer.put(0x01)
+        buffer.put(0x59)
+        buffer.put("audioRoutingShowReverseUI".toByteArray())
+        buffer.put(0x01)
+        buffer.put(0x46)
+        buffer.put("reason".toByteArray())
+        buffer.put(0x53)
+        buffer.put("ReverseBannerTapped".toByteArray())
+
+        return opcode + buffer.array()
+    }
+
+
+    fun sendAddTiPiDevice(selfMacAddress: String, targetMacAddress: String): Boolean {
+        if (selfMacAddress.length != 17 || !selfMacAddress.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")) || targetMacAddress.length != 17 || !targetMacAddress.matches(Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"))) {
+            throw IllegalArgumentException("MAC address must be 6 bytes")
+        }
+    
+        Log.d(TAG, "Sending Add TiPi Device packet to $targetMacAddress")
+        return sendDataPacket(createAddTiPiDevicePacket(selfMacAddress, targetMacAddress))
+    }
+
+    fun createAddTiPiDevicePacket(selfMacAddress: String, targetMacAddress: String): ByteArray {
+        val opcode = byteArrayOf(Opcodes.SMART_ROUTING, 0x00)
+        val buffer = ByteBuffer.allocate(86)
+        buffer.put(
+            targetMacAddress.split(":").map { it.toInt(16).toByte() }.toByteArray().reversedArray()
+        )
+        buffer.put(byteArrayOf(0x4E, 0x00))
+        buffer.put(byteArrayOf(0x01, 0xE5.toByte()))
+        buffer.put(0x48) // 'H'
+        buffer.put("idleTime".toByteArray())
+        buffer.put(byteArrayOf(0x08, 0x47))
+        buffer.put("newTipi".toByteArray())
+        buffer.put(byteArrayOf(0x01, 0x49))
+        buffer.put("btAddress".toByteArray())
+        buffer.put(0x51)
+        buffer.put(selfMacAddress.toByteArray())
+        buffer.put(0x46)
+        buffer.put("btName".toByteArray())
+        buffer.put(0x43)
+        buffer.put("And".toByteArray())
+        buffer.put(0x50)
+        buffer.put("nearbyAudioScore".toByteArray())
+        buffer.put(byteArrayOf(0x0E))
+        return opcode + buffer.array()
+    }
 
     data class ControlCommand(
         val identifier: Byte,
@@ -503,8 +976,9 @@ class AACPManager {
                 val value = ByteArray(4)
                 System.arraycopy(data, 3, value, 0, 4)
 
-                val trimmedValue = value.takeWhile { it != 0x00.toByte() }.toByteArray()
-                return ControlCommand(identifier, trimmedValue)
+                val trimmedValue = value.dropLastWhile { it == 0x00.toByte() }.toByteArray()
+                val finalValue = if (trimmedValue.isEmpty()) byteArrayOf(0x00) else trimmedValue
+                return ControlCommand(identifier, finalValue)
             }
         }
     }
@@ -526,14 +1000,19 @@ class AACPManager {
         )
     }
 
-   @OptIn(ExperimentalStdlibApi::class)
-   fun sendPacket(packet: ByteArray): Boolean {
+    @OptIn(ExperimentalStdlibApi::class)
+    fun sendPacket(packet: ByteArray): Boolean {
         try {
             Log.d(TAG, "Sending packet: ${packet.joinToString(" ") { "%02X".format(it) }}")
 
             if (packet[4] == Opcodes.CONTROL_COMMAND) {
                 val controlCommand = ControlCommand.fromByteArray(packet)
-                Log.d(TAG, "Control command: ${controlCommand.identifier.toHexString()} - ${controlCommand.value.joinToString(" ") { "%02X".format(it) }}")
+                Log.d(
+                    TAG,
+                    "Control command: ${controlCommand.identifier.toHexString()} - ${
+                        controlCommand.value.joinToString(" ") { "%02X".format(it) }
+                    }"
+                )
                 setControlCommandStatusValue(
                     ControlCommandIdentifiers.fromByte(controlCommand.identifier) ?: return false,
                     controlCommand.value
@@ -555,33 +1034,22 @@ class AACPManager {
         }
     }
 
-    fun sendEQPacket(eqFloats: FloatArray, phone: Boolean, media: Boolean): Boolean {
-        val buffer = ByteBuffer.allocate(140).order(ByteOrder.LITTLE_ENDIAN)
-        buffer.put(0x04)
-        buffer.put(0x00)
-        buffer.put(0x04)
-        buffer.put(0x00)
-        buffer.put(0x53)
-        buffer.put(0x00)
-        buffer.put(0x84.toByte())
-        buffer.put(0x00)
-        buffer.put(0x02)
-        buffer.put(0x02)
-        buffer.put(if (phone) 0x01 else 0x00)
-        buffer.put(if (media) 0x01 else 0x00)
-        for (i in 0..7) {
-            buffer.putFloat(eqFloats[i])
-        }
-        while (buffer.hasRemaining()) {
-            buffer.put(0x00)
-        }
-        val packet = buffer.array()
-        return sendPacket(packet)
-    }
-
     fun sendPhoneMediaEQ(eq: FloatArray, phone: Byte = 0x02.toByte(), media: Byte = 0x02.toByte()) {
         if (eq.size != 8) throw IllegalArgumentException("EQ must be 8 floats")
-        val header = byteArrayOf(0x04.toByte(), 0x00.toByte(), 0x04.toByte(), 0x00.toByte(), 0x53.toByte(), 0x00.toByte(), 0x84.toByte(), 0x00.toByte(), 0x02.toByte(), 0x02.toByte(), phone, media)
+        val header = byteArrayOf(
+            0x04.toByte(),
+            0x00.toByte(),
+            0x04.toByte(),
+            0x00.toByte(),
+            0x53.toByte(),
+            0x00.toByte(),
+            0x84.toByte(),
+            0x00.toByte(),
+            0x02.toByte(),
+            0x02.toByte(),
+            phone,
+            media
+        )
         val buffer = ByteBuffer.allocate(128).order(ByteOrder.LITTLE_ENDIAN)
         for (block in 0..3) {
             for (i in 0..7) {
@@ -591,5 +1059,61 @@ class AACPManager {
         val payload = buffer.array()
         val packet = header + payload
         sendPacket(packet)
+    }
+
+    fun parseAudioSourceResponse(data: ByteArray): Pair<String, AudioSourceType> {
+        Log.d(TAG, "Parsing Audio Source Response: ${data.joinToString(" ") { "%02X".format(it) }}")
+        if (data.size < 9) {
+            throw IllegalArgumentException("Data array too short to parse Audio Source Response")
+        }
+        if (data[4] != Opcodes.AUDIO_SOURCE) {
+            throw IllegalArgumentException("Data array does not start with AUDIO_SOURCE opcode")
+        }
+        val macBytes = data.sliceArray(6..11).reversedArray()
+        val mac = macBytes.joinToString(":") { "%02X".format(it) }
+        val typeByte = data[12]
+        val type = AudioSourceType.fromByte(typeByte)
+            ?: throw IllegalArgumentException("Unknown Audio Source Type: $typeByte")
+        return Pair(mac, type)
+    }
+
+    fun parseConnectedDevicesResponse(data: ByteArray): List<ConnectedDevice> {
+        Log.d(
+            TAG,
+            "Parsing Connected Devices Response: ${data.joinToString(" ") { "%02X".format(it) }}"
+        )
+        if (data.size < 8) {
+            throw IllegalArgumentException("Data array too short to parse Connected Devices Response")
+        }
+        if (data[4] != Opcodes.CONNECTED_DEVICES) {
+            throw IllegalArgumentException("Data array does not start with CONNECTED_DEVICES opcode")
+        }
+        val deviceCount = data[8].toInt()
+        val devices = mutableListOf<ConnectedDevice>()
+
+        var offset = 9
+        for (i in 0 until deviceCount) {
+            if (offset + 8 > data.size) {
+                throw IllegalArgumentException("Data array too short to parse all connected devices")
+            }
+            val macBytes = data.sliceArray(offset until offset + 6)
+            val mac = macBytes.joinToString(":") { "%02X".format(it) }
+            val info1 = data[offset + 6]
+            val info2 = data[offset + 7]
+            devices.add(ConnectedDevice(mac, info1, info2))
+            offset += 8
+        }
+
+        return devices
+    }
+
+    fun disconnected() {
+        Log.d(TAG, "Disconnected, clearing state")
+        controlCommandStatusList.clear()
+        controlCommandListeners.clear()
+        owns = false
+        oldConnectedDevices = listOf()
+        connectedDevices = listOf()
+        audioSource = null
     }
 }

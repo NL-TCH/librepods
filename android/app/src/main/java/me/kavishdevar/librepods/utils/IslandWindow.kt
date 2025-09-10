@@ -49,6 +49,7 @@ import android.view.animation.AnticipateOvershootInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -70,6 +71,7 @@ enum class IslandType {
     CONNECTED,
     TAKING_OVER,
     MOVED_TO_REMOTE,
+    MOVED_TO_OTHER_DEVICE,
 }
 
 class IslandWindow(private val context: Context) {
@@ -156,7 +158,7 @@ class IslandWindow(private val context: Context) {
     }
 
     @SuppressLint("SetTextI18s", "ClickableViewAccessibility", "UnspecifiedRegisterReceiverFlag")
-    fun show(name: String, batteryPercentage: Int, context: Context, type: IslandType = IslandType.CONNECTED) {
+    fun show(name: String, batteryPercentage: Int, context: Context, type: IslandType = IslandType.CONNECTED, reversed: Boolean = false) {
         if (ServiceManager.getService()?.islandOpen == true) return
         else ServiceManager.getService()?.islandOpen = true
 
@@ -196,6 +198,24 @@ class IslandWindow(private val context: Context) {
 
         batteryProgressBar.isIndeterminate = false
         islandView.findViewById<TextView>(R.id.island_device_name).text = name
+
+        val actionButton = islandView.findViewById<ImageButton>(R.id.island_action_button)
+        val batteryBg = islandView.findViewById<ProgressBar>(R.id.island_battery_bg)
+        if (type == IslandType.MOVED_TO_OTHER_DEVICE && !reversed) {
+            actionButton.visibility = View.VISIBLE
+            actionButton.setOnClickListener {
+                ServiceManager.getService()?.takeOver("reverse")
+                close()
+            }
+            islandView.findViewById<TextView>(R.id.island_battery_text).visibility = View.GONE
+            islandView.findViewById<ProgressBar>(R.id.island_battery_progress).visibility = View.GONE
+            batteryBg.visibility = View.GONE
+        } else {
+            actionButton.visibility = View.GONE
+            islandView.findViewById<TextView>(R.id.island_battery_text).visibility = View.VISIBLE
+            islandView.findViewById<ProgressBar>(R.id.island_battery_progress).visibility = View.VISIBLE
+            batteryBg.visibility = View.VISIBLE
+        }
 
         val batteryIntentFilter = IntentFilter(AirPodsNotifications.BATTERY_DATA)
         batteryIntentFilter.addAction(AirPodsNotifications.DISCONNECT_RECEIVERS)
@@ -330,6 +350,13 @@ class IslandWindow(private val context: Context) {
             }
             IslandType.MOVED_TO_REMOTE -> {
                 islandView.findViewById<TextView>(R.id.island_connected_text).text = getString(context, R.string.island_moved_to_remote_text)
+            }
+            IslandType.MOVED_TO_OTHER_DEVICE -> {
+                if (reversed) {
+                    islandView.findViewById<TextView>(R.id.island_connected_text).text = getString(context, R.string.island_moved_to_other_device_reversed_text)
+                } else {
+                    islandView.findViewById<TextView>(R.id.island_connected_text).text = getString(context, R.string.island_moved_to_other_device_text)
+                }
             }
         }
 
@@ -604,6 +631,10 @@ class IslandWindow(private val context: Context) {
     }
 
     fun close() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { close() }
+            return
+        }
         try {
             if (isClosing) return
             isClosing = true
@@ -647,7 +678,15 @@ class IslandWindow(private val context: Context) {
     }
 
     private fun cleanupAndRemoveView() {
-        containerView.visibility = View.GONE
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { cleanupAndRemoveView() }
+            return
+        }
+        try {
+            containerView.visibility = View.GONE
+        } catch (e: Exception) {
+            e("IslandWindow", "Error setting visibility: $e")
+        }
         try {
             if (containerView.parent != null) {
                 windowManager.removeView(containerView)
@@ -662,6 +701,10 @@ class IslandWindow(private val context: Context) {
     }
 
     fun forceClose() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { forceClose() }
+            return
+        }
         try {
             if (isClosing) return
             isClosing = true

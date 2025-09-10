@@ -26,6 +26,7 @@ import android.media.AudioPlaybackConfiguration
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import androidx.annotation.RequiresApi
@@ -41,7 +42,20 @@ object MediaController {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var preferenceChangeListener: SharedPreferences.OnSharedPreferenceChangeListener
 
-    var pausedForCrossDevice = false
+    var pausedWhileTakingOver = false
+    var pausedForOtherDevice = false
+
+    private var lastSelfActionAt: Long = 0L
+    private const val SELF_ACTION_IGNORE_MS = 800L
+    private const val PLAYBACK_DEBOUNCE_MS = 300L
+    private var lastPlaybackCallbackAt: Long = 0L
+    private var lastKnownIsMusicActive: Boolean? = null
+
+    private const val PAUSED_FOR_OTHER_DEVICE_CLEAR_MS = 500L
+    private val clearPausedForOtherDeviceRunnable = Runnable {
+        pausedForOtherDevice = false
+        Log.d("MediaController", "Cleared pausedForOtherDevice after timeout, resuming normal playback monitoring")
+    }
 
     private var relativeVolume: Boolean = false
     private var conversationalAwarenessVolume: Int = 2
@@ -81,17 +95,65 @@ object MediaController {
         @RequiresApi(Build.VERSION_CODES.R)
         override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>?) {
             super.onPlaybackConfigChanged(configs)
-            Log.d("MediaController", "Playback config changed, iPausedTheMedia: $iPausedTheMedia")
+            val now = SystemClock.uptimeMillis()
+            val isActive = audioManager.isMusicActive
+            Log.d("MediaController", "Playback config changed, iPausedTheMedia: $iPausedTheMedia, isActive: $isActive, pausedForOtherDevice: $pausedForOtherDevice, lastKnownIsMusicActive: $lastKnownIsMusicActive")
+
+            if (now - lastPlaybackCallbackAt < PLAYBACK_DEBOUNCE_MS) {
+                Log.d("MediaController", "Ignoring playback callback due to debounce (${now - lastPlaybackCallbackAt}ms)")
+                lastPlaybackCallbackAt = now
+                return
+            }
+            lastPlaybackCallbackAt = now
+
+            if (now - lastSelfActionAt < SELF_ACTION_IGNORE_MS) {
+                Log.d("MediaController", "Ignoring playback callback because it's likely caused by our own action (${now - lastSelfActionAt}ms since last self-action)")
+                lastKnownIsMusicActive = isActive
+                return
+            }
+
+            if (pausedForOtherDevice) {
+                handler.removeCallbacks(clearPausedForOtherDeviceRunnable)
+                handler.postDelayed(clearPausedForOtherDeviceRunnable, PAUSED_FOR_OTHER_DEVICE_CLEAR_MS)
+
+                if (isActive) {
+                    Log.d("MediaController", "Detected play while pausedForOtherDevice; attempting to take over")
+                    pausedForOtherDevice = false
+                    userPlayedTheMedia = true
+                    if (!pausedWhileTakingOver) {
+                        ServiceManager.getService()?.takeOver("music")
+                    }
+                } else {
+                    Log.d("MediaController", "Still not active while pausedForOtherDevice; will clear state after timeout")
+                }
+
+                lastKnownIsMusicActive = isActive
+                return
+            }
+
             if (configs != null && !iPausedTheMedia) {
-                Log.d("MediaController", "Seems like the user changed the state of media themselves, now I won't play until the ear detection pauses it.")
+                ServiceManager.getService()?.aacpManager?.sendMediaInformataion(
+                    ServiceManager.getService()?.localMac ?: return,
+                    isActive
+                )
+                Log.d("MediaController", "User changed media state themselves; will wait for ear detection pause before auto-play")
                 handler.postDelayed({
                     userPlayedTheMedia = audioManager.isMusicActive
-                }, 7) // i have no idea why android sends an event a hundred times after the user does something.
+                    if (audioManager.isMusicActive) {
+                        pausedForOtherDevice = false
+                    }
+                }, 7)
             }
-            Log.d("MediaController", "pausedforcrossdevice: $pausedForCrossDevice")
-            if (!pausedForCrossDevice && audioManager.isMusicActive) {
-                ServiceManager.getService()?.takeOver("music")
+
+            Log.d("MediaController", "pausedWhileTakingOver: $pausedWhileTakingOver")
+            if (!pausedWhileTakingOver && isActive) {
+                if (lastKnownIsMusicActive != true) {
+                    Log.d("MediaController", "Music is active and not pausedWhileTakingOver; requesting takeOver")
+                    ServiceManager.getService()?.takeOver("music")
+                }
             }
+
+            lastKnownIsMusicActive = isActive
         }
     }
 
@@ -126,6 +188,7 @@ object MediaController {
                 KeyEvent.KEYCODE_MEDIA_PREVIOUS
             )
         )
+        lastSelfActionAt = SystemClock.uptimeMillis()
     }
 
     @Synchronized
@@ -143,6 +206,7 @@ object MediaController {
                 KeyEvent.KEYCODE_MEDIA_NEXT
             )
         )
+        lastSelfActionAt = SystemClock.uptimeMillis()
     }
 
     @Synchronized
@@ -163,6 +227,7 @@ object MediaController {
                     KeyEvent.KEYCODE_MEDIA_PAUSE
                 )
             )
+            lastSelfActionAt = SystemClock.uptimeMillis()
         }
     }
 
@@ -184,14 +249,15 @@ object MediaController {
                     KeyEvent.KEYCODE_MEDIA_PLAY
                 )
             )
+            lastSelfActionAt = SystemClock.uptimeMillis()
         }
         if (!audioManager.isMusicActive) {
             Log.d("MediaController", "Setting iPausedTheMedia to false")
             iPausedTheMedia = false
         }
-        if (pausedForCrossDevice) {
-            Log.d("MediaController", "Setting pausedForCrossDevice to false")
-            pausedForCrossDevice = false
+        if (pausedWhileTakingOver) {
+            Log.d("MediaController", "Setting pausedWhileTakingOver to false")
+            pausedWhileTakingOver = false
         }
     }
 

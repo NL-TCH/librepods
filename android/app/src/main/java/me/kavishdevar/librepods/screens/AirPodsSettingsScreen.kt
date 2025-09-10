@@ -387,9 +387,6 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                         default = false,
                         controlCommandIdentifier = AACPManager.Companion.ControlCommandIdentifiers.ALLOW_OFF_OPTION
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    AccessibilitySettings()
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -403,6 +400,9 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
 
                 // Only show debug when not in BLE-only mode
                 if (!bleOnlyMode) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    AccessibilitySettings()
+
                     Spacer(modifier = Modifier.height(16.dp))
                     NavigationButton("debug", "Debug", navController)
                 }
