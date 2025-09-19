@@ -21,7 +21,6 @@
     <string name="head_gestures">头部手势</string>
     <string name="left">左耳</string>
     <string name="right">右耳</string>
-    <string name="adjusts_volume">根据环境调整媒体音量</string>
     <string name="conversational_awareness">对话感知</string>
     <string name="conversational_awareness_description">当你开始与他人交谈时，会降低媒体音量并减少背景噪音。</string>
     <string name="personalized_volume">个性化音量</string>

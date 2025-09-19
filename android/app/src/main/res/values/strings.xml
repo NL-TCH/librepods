@@ -21,7 +21,6 @@
     <string name="head_gestures">Head Gestures</string>
     <string name="left">Left</string>
     <string name="right">Right</string>
-    <string name="adjusts_volume">Adjusts the volume of media in response to your environment</string>
     <string name="conversational_awareness">Conversational Awareness</string>
     <string name="conversational_awareness_description">Lowers media volume and reduces background noise when you start speaking to other people.</string>
     <string name="personalized_volume">Personalized Volume</string>
@@ -85,4 +84,10 @@
     <string name="customize_transparency_mode_description">You can customize Transparency mode for your AirPods Pro to help you hear what\'s around you.</string>
     <string name="loud_sound_reduction_description">AirPods Pro automatically reduce your exposure to loud environmental noises when in Transparency and Adaptive mode.</string>
     <string name="loud_sound_reduction">Loud Sound Reduction</string>
+    <string name="call_controls">Call Controls</string>
+    <string name="automatically_connect">Connect to this device automatically</string>
+    <string name="automatically_connect_description">When enabled, AirPods will try to connect to this device automatically. Else, they will try to autoconnect only when last connected.</string>
+    <string name="sleep_detection">Pause media when falling asleep</string>
+    <string name="off_listening_mode">Off Listening Mode</string>
+    <string name="off_listening_mode_description">When this is on, AirPods listening modes will include an Off option. Loud sound levels are not reduced when the listening mode is set to Off.</string>
 </resources>

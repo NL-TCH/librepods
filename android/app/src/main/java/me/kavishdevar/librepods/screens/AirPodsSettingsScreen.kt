@@ -94,6 +94,8 @@ import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.CustomDevice
 import me.kavishdevar.librepods.composables.AudioSettings
 import me.kavishdevar.librepods.composables.BatteryView
+import me.kavishdevar.librepods.composables.CallControlSettings
+import me.kavishdevar.librepods.composables.ConnectionSettings
 import me.kavishdevar.librepods.composables.IndependentToggle
 import me.kavishdevar.librepods.composables.NameField
 import me.kavishdevar.librepods.composables.NavigationButton
@@ -353,11 +355,35 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                     )
                 }
 
-                // Only show L2CAP-dependent features when not in BLE-only mode
                 if (!bleOnlyMode) {
                     Spacer(modifier = Modifier.height(32.dp))
                     NoiseControlSettings(service = service)
 
+                    Spacer(modifier = Modifier.height(16.dp))
+                    CallControlSettings()
+
+                    // camera control goes here, airpods side is done, i just need to figure out how to listen to app open/close events
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    PressAndHoldSettings(navController = navController)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    AudioSettings()
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    ConnectionSettings()
+
+                    // microphone settings
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    IndependentToggle(
+                        name = stringResource(R.string.sleep_detection),
+                        service = service,
+                        sharedPreferences = sharedPreferences,
+                        default = false,
+                        controlCommandIdentifier = AACPManager.Companion.ControlCommandIdentifiers.SLEEP_DETECTION_CONFIG
+                    )
+                
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = stringResource(R.string.head_gestures).uppercase(),
@@ -369,42 +395,35 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                         ),
                         modifier = Modifier.padding(8.dp, bottom = 2.dp)
                     )
-
                     Spacer(modifier = Modifier.height(2.dp))
                     NavigationButton(to = "head_tracking", "Head Tracking", navController)
 
-                    Spacer(modifier = Modifier.height(16.dp))
-                    PressAndHoldSettings(navController = navController)
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    AudioSettings()
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    IndependentToggle(
-                        name = "Off Listening Mode",
-                        service = service,
-                        sharedPreferences = sharedPreferences,
-                        default = false,
-                        controlCommandIdentifier = AACPManager.Companion.ControlCommandIdentifiers.ALLOW_OFF_OPTION
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-                IndependentToggle(
-                    name = "Automatic Ear Detection",
-                    service = service,
-                    functionName = "setEarDetection",
-                    sharedPreferences = sharedPreferences,
-                    default = true,
-                )
-
-                // Only show debug when not in BLE-only mode
-                if (!bleOnlyMode) {
                     Spacer(modifier = Modifier.height(16.dp))
                     NavigationButton(to = "", "Accessibility", navController = navController, onClick = {
                         val intent = Intent(context, CustomDevice::class.java)
                         context.startActivity(intent)
                     })
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    IndependentToggle(
+                        name = stringResource(R.string.off_listening_mode),
+                        service = service,
+                        sharedPreferences = sharedPreferences,
+                        default = false,
+                        controlCommandIdentifier = AACPManager.Companion.ControlCommandIdentifiers.ALLOW_OFF_OPTION
+                    )
+                    Text(
+                        text = stringResource(R.string.off_listening_mode_description),
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Light,
+                            color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f),
+                            fontFamily = FontFamily(Font(R.font.sf_pro))
+                        ),
+                        modifier = Modifier.padding(8.dp, top = 0.dp)
+                    )
+
+                    // an about card- everything but the version number is unknown - will add later if i find out
 
                     Spacer(modifier = Modifier.height(16.dp))
                     NavigationButton("debug", "Debug", navController)

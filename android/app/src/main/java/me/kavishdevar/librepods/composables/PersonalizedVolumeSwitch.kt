@@ -54,45 +54,47 @@ import me.kavishdevar.librepods.utils.AACPManager
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
-fun ConversationalAwarenessSwitch() {
+fun PersonalizedVolumeSwitch() {
     val service = ServiceManager.getService()!!
-    val conversationEnabledValue = service.aacpManager.controlCommandStatusList.find {
-        it.identifier == AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG
+    
+    val adaptiveVolumeEnabledValue = service.aacpManager.controlCommandStatusList.find {
+        it.identifier == AACPManager.Companion.ControlCommandIdentifiers.ADAPTIVE_VOLUME_CONFIG
     }?.value?.takeIf { it.isNotEmpty() }?.get(0)
-    var conversationalAwarenessEnabled by remember {
+
+    var adaptiveVolumeEnabled by remember {
         mutableStateOf(
-            conversationEnabledValue == 1.toByte()
+            adaptiveVolumeEnabledValue == 1.toByte()
         )
     }
 
-    fun updateConversationalAwareness(enabled: Boolean) {
-        conversationalAwarenessEnabled = enabled
+    fun updatePersonalizedVolume(enabled: Boolean) {
+        adaptiveVolumeEnabled = enabled
         service.aacpManager.sendControlCommand(
-            AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG.value,
+            AACPManager.Companion.ControlCommandIdentifiers.ADAPTIVE_VOLUME_CONFIG.value,
             enabled
         )
     }
 
-    val conversationalAwarenessListener = object: AACPManager.ControlCommandListener {
+    val adaptiveVolumeListener = object: AACPManager.ControlCommandListener {
         override fun onControlCommandReceived(controlCommand: AACPManager.ControlCommand) {
-            if (controlCommand.identifier == AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG.value) {
+            if (controlCommand.identifier == AACPManager.Companion.ControlCommandIdentifiers.ADAPTIVE_VOLUME_CONFIG.value) {
                 val newValue = controlCommand.value.takeIf { it.isNotEmpty() }?.get(0)
-                conversationalAwarenessEnabled = newValue == 1.toByte()
+                adaptiveVolumeEnabled = newValue == 1.toByte()
             }
         }
     }
     
     LaunchedEffect(Unit) {
         service.aacpManager.registerControlCommandListener(
-            AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG,
-            conversationalAwarenessListener
+            AACPManager.Companion.ControlCommandIdentifiers.ADAPTIVE_VOLUME_CONFIG,
+            adaptiveVolumeListener
         )
     }
     DisposableEffect(Unit) {
         onDispose {
             service.aacpManager.unregisterControlCommandListener(
-                AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG,
-                conversationalAwarenessListener
+                AACPManager.Companion.ControlCommandIdentifiers.ADAPTIVE_VOLUME_CONFIG,
+                adaptiveVolumeListener
             )
         }
     }
@@ -123,7 +125,7 @@ fun ConversationalAwarenessSwitch() {
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) {
-                updateConversationalAwareness(!conversationalAwarenessEnabled)
+                updatePersonalizedVolume(!adaptiveVolumeEnabled)
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -133,22 +135,22 @@ fun ConversationalAwarenessSwitch() {
                 .padding(end = 4.dp)
         ) {
             Text(
-                text = stringResource(R.string.conversational_awareness),
+                text = stringResource(R.string.personalized_volume),
                 fontSize = 16.sp,
                 color = textColor
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = stringResource(R.string.conversational_awareness_description),
+                text = stringResource(R.string.personalized_volume_description),
                 fontSize = 12.sp,
                 color = textColor.copy(0.6f),
                 lineHeight = 14.sp,
             )
         }
         StyledSwitch(
-            checked = conversationalAwarenessEnabled,
+            checked = adaptiveVolumeEnabled,
             onCheckedChange = {
-                updateConversationalAwareness(it)
+                updatePersonalizedVolume(it)
             },
         )
     }
@@ -156,6 +158,6 @@ fun ConversationalAwarenessSwitch() {
 
 @Preview
 @Composable
-fun ConversationalAwarenessSwitchPreview() {
-    ConversationalAwarenessSwitch()
+fun PersonalizedVolumeSwitchPreview() {
+    PersonalizedVolumeSwitch()
 }

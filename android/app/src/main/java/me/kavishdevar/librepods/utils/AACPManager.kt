@@ -114,6 +114,10 @@ class AACPManager {
             HEARING_ASSIST_CONFIG(0x33),
             ALLOW_OFF_OPTION(0x34),
             STEM_CONFIG(0x39),
+            SLEEP_DETECTION_CONFIG(0x35),
+            ALLOW_AUTO_CONNECT(0x36), // not sure what this does, AUTOMATIC_CONNECTION is the only one used, but this is newer... so ¯\_(ツ)_/¯
+            EAR_DETECTION_CONFIG(0x0A),
+            AUTOMATIC_CONNECTION_CONFIG(0x20),
             OWNS_CONNECTION(0x06);
 
             companion object {
@@ -594,6 +598,8 @@ class AACPManager {
     fun createRequestNotificationPacket(): ByteArray {
         val opcode = byteArrayOf(Opcodes.REQUEST_NOTIFICATIONS, 0x00)
         val data = byteArrayOf(0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte())
+        // note to self #1: third byte is 0xfd when ear detection is disabled
+        // note to self #2: this can be sent any time, not just at the start of the aacp connection
         return opcode + data
     }
 

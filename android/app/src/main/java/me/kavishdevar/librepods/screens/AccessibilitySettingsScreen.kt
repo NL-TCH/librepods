@@ -75,6 +75,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -102,6 +103,7 @@ import me.kavishdevar.librepods.composables.VolumeControlSwitch
 import me.kavishdevar.librepods.services.ServiceManager
 import me.kavishdevar.librepods.utils.ATTManager
 import me.kavishdevar.librepods.utils.AACPManager
+import me.kavishdevar.librepods.utils.RadareOffsetFinder
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -124,6 +126,9 @@ fun AccessibilitySettingsScreen() {
     val attManager = ATTManager(ServiceManager.getService()?.device?: throw IllegalStateException("No device connected"))
     // get the AACP manager if available (used for EQ read/write)
     val aacpManager = remember { ServiceManager.getService()?.aacpManager }
+    val context = LocalContext.current
+    val radareOffsetFinder = remember { RadareOffsetFinder(context) }
+    val isSdpOffsetAvailable = remember { mutableStateOf(RadareOffsetFinder.isSdpOffsetAvailable()) }
 
     val trackColor = if (isDarkTheme) Color(0xFFB3B3B3) else Color(0xFF929491)
     val activeTrackColor = if (isDarkTheme) Color(0xFF007AFF) else Color(0xFF3C6DF5)
@@ -457,76 +462,80 @@ fun AccessibilitySettingsScreen() {
                 }
             }
 
-            AccessibilityToggle(
-                text = "Transparency Mode",
-                mutableState = enabled,
-                independent = true
-            )
-            Text(
-                text = stringResource(R.string.customize_transparency_mode_description),
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    color = textColor.copy(0.6f),
-                    lineHeight = 14.sp,
-                ),
-                modifier = Modifier
-                    .padding(horizontal = 2.dp)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Customize Transparency Mode".uppercase(),
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Light,
-                    color = textColor.copy(alpha = 0.6f),
-                    fontFamily = FontFamily(Font(R.font.sf_pro))
-                ),
-                modifier = Modifier.padding(8.dp, bottom = 2.dp)
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(backgroundColor, RoundedCornerShape(14.dp))
-                    .padding(8.dp)
-            ) {
-                AccessibilitySlider(
-                    label = "Amplification",
-                    valueRange = -1f..1f,
-                    value = amplificationSliderValue.floatValue,
-                    onValueChange = {
-                        amplificationSliderValue.floatValue = snapIfClose(it, listOf(-0.5f, -0.25f, 0f, 0.25f, 0.5f))
-                    },
-                )
-                AccessibilitySlider(
-                    label = "Balance",
-                    valueRange = -1f..1f,
-                    value = balanceSliderValue.floatValue,
-                    onValueChange = {
-                        balanceSliderValue.floatValue = snapIfClose(it, listOf(0f))
-                    },
-                )
-                AccessibilitySlider(
-                    label = "Tone",
-                    valueRange = -1f..1f,
-                    value = toneSliderValue.floatValue,
-                    onValueChange = {
-                        toneSliderValue.floatValue = snapIfClose(it, listOf(0f))
-                    },
-                )
-                AccessibilitySlider(
-                    label = "Ambient Noise Reduction",
-                    valueRange = 0f..1f,
-                    value = ambientNoiseReductionSliderValue.floatValue,
-                    onValueChange = {
-                        ambientNoiseReductionSliderValue.floatValue = snapIfClose(it, listOf(0.1f, 0.3f, 0.5f, 0.7f, 0.9f))
-                    },
-                )
+            // Only show transparency mode section if SDP offset is available
+            if (isSdpOffsetAvailable.value) {
                 AccessibilityToggle(
-                    text = "Conversation Boost",
-                    mutableState = conversationBoostEnabled
+                    text = "Transparency Mode",
+                    mutableState = enabled,
+                    independent = true
                 )
+                Text(
+                    text = stringResource(R.string.customize_transparency_mode_description),
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        color = textColor.copy(0.6f),
+                        lineHeight = 14.sp,
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 2.dp)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Customize Transparency Mode".uppercase(),
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Light,
+                        color = textColor.copy(alpha = 0.6f),
+                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                    ),
+                    modifier = Modifier.padding(8.dp, bottom = 2.dp)
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(backgroundColor, RoundedCornerShape(14.dp))
+                        .padding(8.dp)
+                ) {
+                    AccessibilitySlider(
+                        label = "Amplification",
+                        valueRange = -1f..1f,
+                        value = amplificationSliderValue.floatValue,
+                        onValueChange = {
+                            amplificationSliderValue.floatValue = snapIfClose(it, listOf(-0.5f, -0.25f, 0f, 0.25f, 0.5f))
+                        },
+                    )
+                    AccessibilitySlider(
+                        label = "Balance",
+                        valueRange = -1f..1f,
+                        value = balanceSliderValue.floatValue,
+                        onValueChange = {
+                            balanceSliderValue.floatValue = snapIfClose(it, listOf(0f))
+                        },
+                    )
+                    AccessibilitySlider(
+                        label = "Tone",
+                        valueRange = -1f..1f,
+                        value = toneSliderValue.floatValue,
+                        onValueChange = {
+                            toneSliderValue.floatValue = snapIfClose(it, listOf(0f))
+                        },
+                    )
+                    AccessibilitySlider(
+                        label = "Ambient Noise Reduction",
+                        valueRange = 0f..1f,
+                        value = ambientNoiseReductionSliderValue.floatValue,
+                        onValueChange = {
+                            ambientNoiseReductionSliderValue.floatValue = snapIfClose(it, listOf(0.1f, 0.3f, 0.5f, 0.7f, 0.9f))
+                        },
+                    )
+                    AccessibilityToggle(
+                        text = "Conversation Boost",
+                        mutableState = conversationBoostEnabled
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
             }
-            Spacer(modifier = Modifier.height(2.dp))
+
             Text(
                 text = "AUDIO",
                 style = TextStyle(
@@ -604,101 +613,105 @@ fun AccessibilitySettingsScreen() {
             }
             Spacer(modifier = Modifier.height(2.dp))
 
-            Text(
-                text = "Equalizer".uppercase(),
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Light,
-                    color = textColor.copy(alpha = 0.6f),
-                    fontFamily = FontFamily(Font(R.font.sf_pro))
-                ),
-                modifier = Modifier.padding(8.dp, bottom = 2.dp)
-            )
+            // Only show transparency mode EQ section if SDP offset is available  
+            if (isSdpOffsetAvailable.value) {
+                Text(
+                    text = "Equalizer".uppercase(),
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Light,
+                        color = textColor.copy(alpha = 0.6f),
+                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                    ),
+                    modifier = Modifier.padding(8.dp, bottom = 2.dp)
+                )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(backgroundColor, RoundedCornerShape(14.dp))
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                for (i in 0 until 8) {
-                    val eqValue = remember(eq.value[i]) { mutableFloatStateOf(eq.value[i]) }
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(38.dp)
-                    ) {
-                        Text(
-                            text = String.format("%.2f", eqValue.floatValue),
-                            fontSize = 12.sp,
-                            color = textColor,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-
-                        Slider(
-                            value = eqValue.floatValue,
-                            onValueChange = { newVal ->
-                                eqValue.floatValue = newVal
-                                val newEQ = eq.value.copyOf()
-                                newEQ[i] = eqValue.floatValue
-                                eq.value = newEQ
-                            },
-                            valueRange = 0f..100f,
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(backgroundColor, RoundedCornerShape(14.dp))
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    for (i in 0 until 8) {
+                        val eqValue = remember(eq.value[i]) { mutableFloatStateOf(eq.value[i]) }
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .fillMaxWidth(0.9f)
-                                .height(36.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = thumbColor,
-                                activeTrackColor = activeTrackColor,
-                                inactiveTrackColor = trackColor
-                            ),
-                            thumb = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .shadow(4.dp, CircleShape)
-                                        .background(thumbColor, CircleShape)
-                                )
-                            },
-                            track = {
-                                Box (
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(12.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                )
-                                {
+                                .fillMaxWidth()
+                                .height(38.dp)
+                        ) {
+                            Text(
+                                text = String.format("%.2f", eqValue.floatValue),
+                                fontSize = 12.sp,
+                                color = textColor,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+
+                            Slider(
+                                value = eqValue.floatValue,
+                                onValueChange = { newVal ->
+                                    eqValue.floatValue = newVal
+                                    val newEQ = eq.value.copyOf()
+                                    newEQ[i] = eqValue.floatValue
+                                    eq.value = newEQ
+                                },
+                                valueRange = 0f..100f,
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(36.dp),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = thumbColor,
+                                    activeTrackColor = activeTrackColor,
+                                    inactiveTrackColor = trackColor
+                                ),
+                                thumb = {
                                     Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .shadow(4.dp, CircleShape)
+                                            .background(thumbColor, CircleShape)
+                                    )
+                                },
+                                track = {
+                                    Box (
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(4.dp)
-                                            .background(trackColor, RoundedCornerShape(4.dp))
+                                            .height(12.dp),
+                                        contentAlignment = Alignment.CenterStart
                                     )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(eqValue.floatValue / 100f)
-                                            .height(4.dp)
-                                            .background(activeTrackColor, RoundedCornerShape(4.dp))
-                                    )
+                                    {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(4.dp)
+                                                .background(trackColor, RoundedCornerShape(4.dp))
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(eqValue.floatValue / 100f)
+                                                .height(4.dp)
+                                                .background(activeTrackColor, RoundedCornerShape(4.dp))
+                                        )
+                                    }
                                 }
-                            }
-                        )
+                            )
 
-                        Text(
-                            text = "Band ${i + 1}",
-                            fontSize = 12.sp,
-                            color = textColor,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                            Text(
+                                text = "Band ${i + 1}",
+                                fontSize = 12.sp,
+                                color = textColor,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "Apply EQ to".uppercase(),
                 style = TextStyle(

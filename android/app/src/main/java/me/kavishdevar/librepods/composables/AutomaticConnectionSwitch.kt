@@ -44,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context.MODE_PRIVATE
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -54,45 +56,64 @@ import me.kavishdevar.librepods.utils.AACPManager
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
-fun ConversationalAwarenessSwitch() {
+fun AutomaticConnectionSwitch() {
+    val sharedPreferences = LocalContext.current.getSharedPreferences("settings", MODE_PRIVATE)
     val service = ServiceManager.getService()!!
-    val conversationEnabledValue = service.aacpManager.controlCommandStatusList.find {
-        it.identifier == AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG
+    
+    val shared_preference_key = "automatic_connection_ctrl_cmd"
+    
+    val automaticConnectionEnabledValue = service.aacpManager.controlCommandStatusList.find {
+        it.identifier == AACPManager.Companion.ControlCommandIdentifiers.AUTOMATIC_CONNECTION_CONFIG
     }?.value?.takeIf { it.isNotEmpty() }?.get(0)
-    var conversationalAwarenessEnabled by remember {
+
+    var automaticConnectionEnabled by remember {
         mutableStateOf(
-            conversationEnabledValue == 1.toByte()
+            if (automaticConnectionEnabledValue != null) {
+                automaticConnectionEnabledValue == 1.toByte()
+            } else {
+                sharedPreferences.getBoolean(shared_preference_key, false)
+            }
         )
     }
 
-    fun updateConversationalAwareness(enabled: Boolean) {
-        conversationalAwarenessEnabled = enabled
+    fun updateAutomaticConnection(enabled: Boolean) {
+        automaticConnectionEnabled = enabled
         service.aacpManager.sendControlCommand(
-            AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG.value,
+            AACPManager.Companion.ControlCommandIdentifiers.AUTOMATIC_CONNECTION_CONFIG.value,
             enabled
         )
+        // todo: send other connected devices smartAudioRoutingDisabled or something, check packets again.
+        
+        sharedPreferences.edit()
+            .putBoolean(shared_preference_key, enabled)
+            .apply()
     }
 
-    val conversationalAwarenessListener = object: AACPManager.ControlCommandListener {
+    val automaticConnectionListener = object: AACPManager.ControlCommandListener {
         override fun onControlCommandReceived(controlCommand: AACPManager.ControlCommand) {
-            if (controlCommand.identifier == AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG.value) {
+            if (controlCommand.identifier == AACPManager.Companion.ControlCommandIdentifiers.AUTOMATIC_CONNECTION_CONFIG.value) {
                 val newValue = controlCommand.value.takeIf { it.isNotEmpty() }?.get(0)
-                conversationalAwarenessEnabled = newValue == 1.toByte()
+                val enabled = newValue == 1.toByte()
+                automaticConnectionEnabled = enabled
+                
+                sharedPreferences.edit()
+                    .putBoolean(shared_preference_key, enabled)
+                    .apply()
             }
         }
     }
     
     LaunchedEffect(Unit) {
         service.aacpManager.registerControlCommandListener(
-            AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG,
-            conversationalAwarenessListener
+            AACPManager.Companion.ControlCommandIdentifiers.AUTOMATIC_CONNECTION_CONFIG,
+            automaticConnectionListener
         )
     }
     DisposableEffect(Unit) {
         onDispose {
             service.aacpManager.unregisterControlCommandListener(
-                AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG,
-                conversationalAwarenessListener
+                AACPManager.Companion.ControlCommandIdentifiers.AUTOMATIC_CONNECTION_CONFIG,
+                automaticConnectionListener
             )
         }
     }
@@ -123,7 +144,7 @@ fun ConversationalAwarenessSwitch() {
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) {
-                updateConversationalAwareness(!conversationalAwarenessEnabled)
+                updateAutomaticConnection(!automaticConnectionEnabled)
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -133,22 +154,22 @@ fun ConversationalAwarenessSwitch() {
                 .padding(end = 4.dp)
         ) {
             Text(
-                text = stringResource(R.string.conversational_awareness),
+                text = stringResource(R.string.automatically_connect),
                 fontSize = 16.sp,
                 color = textColor
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = stringResource(R.string.conversational_awareness_description),
+                text = stringResource(R.string.automatically_connect_description),
                 fontSize = 12.sp,
                 color = textColor.copy(0.6f),
                 lineHeight = 14.sp,
             )
         }
         StyledSwitch(
-            checked = conversationalAwarenessEnabled,
+            checked = automaticConnectionEnabled,
             onCheckedChange = {
-                updateConversationalAwareness(it)
+                updateAutomaticConnection(it)
             },
         )
     }
@@ -156,6 +177,6 @@ fun ConversationalAwarenessSwitch() {
 
 @Preview
 @Composable
-fun ConversationalAwarenessSwitchPreview() {
-    ConversationalAwarenessSwitch()
+fun AutomaticConnectionSwitchPreview() {
+    AutomaticConnectionSwitch()
 }

@@ -44,55 +44,77 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context.MODE_PRIVATE
+import android.content.SharedPreferences
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.services.ServiceManager
 import me.kavishdevar.librepods.utils.AACPManager
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
-fun ConversationalAwarenessSwitch() {
+fun EarDetectionSwitch() {
+    val sharedPreferences = LocalContext.current.getSharedPreferences("settings", MODE_PRIVATE)
     val service = ServiceManager.getService()!!
-    val conversationEnabledValue = service.aacpManager.controlCommandStatusList.find {
-        it.identifier == AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG
+    
+    val shared_preference_key = "automatic_ear_detection"
+
+    val earDetectionEnabledValue = service.aacpManager.controlCommandStatusList.find {
+        it.identifier == AACPManager.Companion.ControlCommandIdentifiers.EAR_DETECTION_CONFIG
     }?.value?.takeIf { it.isNotEmpty() }?.get(0)
-    var conversationalAwarenessEnabled by remember {
+
+    var earDetectionEnabled by remember {
         mutableStateOf(
-            conversationEnabledValue == 1.toByte()
+            if (earDetectionEnabledValue != null) {
+                earDetectionEnabledValue == 1.toByte()
+            } else {
+                sharedPreferences.getBoolean(shared_preference_key, false)
+            }
         )
     }
 
-    fun updateConversationalAwareness(enabled: Boolean) {
-        conversationalAwarenessEnabled = enabled
+    fun updateEarDetection(enabled: Boolean) {
+        earDetectionEnabled = enabled
         service.aacpManager.sendControlCommand(
-            AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG.value,
+            AACPManager.Companion.ControlCommandIdentifiers.EAR_DETECTION_CONFIG.value,
             enabled
         )
+        service.setEarDetection(enabled)
+        
+        sharedPreferences.edit()
+            .putBoolean(shared_preference_key, enabled)
+            .apply()
     }
 
-    val conversationalAwarenessListener = object: AACPManager.ControlCommandListener {
+    val earDetectionListener = object: AACPManager.ControlCommandListener {
         override fun onControlCommandReceived(controlCommand: AACPManager.ControlCommand) {
-            if (controlCommand.identifier == AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG.value) {
+            if (controlCommand.identifier == AACPManager.Companion.ControlCommandIdentifiers.EAR_DETECTION_CONFIG.value) {
                 val newValue = controlCommand.value.takeIf { it.isNotEmpty() }?.get(0)
-                conversationalAwarenessEnabled = newValue == 1.toByte()
+                val enabled = newValue == 1.toByte()
+                earDetectionEnabled = enabled
+                
+                sharedPreferences.edit()
+                    .putBoolean(shared_preference_key, enabled)
+                    .apply()
             }
         }
     }
     
     LaunchedEffect(Unit) {
         service.aacpManager.registerControlCommandListener(
-            AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG,
-            conversationalAwarenessListener
+            AACPManager.Companion.ControlCommandIdentifiers.EAR_DETECTION_CONFIG,
+            earDetectionListener
         )
     }
     DisposableEffect(Unit) {
         onDispose {
             service.aacpManager.unregisterControlCommandListener(
-                AACPManager.Companion.ControlCommandIdentifiers.CONVERSATION_DETECT_CONFIG,
-                conversationalAwarenessListener
+                AACPManager.Companion.ControlCommandIdentifiers.EAR_DETECTION_CONFIG,
+                earDetectionListener
             )
         }
     }
@@ -123,7 +145,7 @@ fun ConversationalAwarenessSwitch() {
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) {
-                updateConversationalAwareness(!conversationalAwarenessEnabled)
+                updateEarDetection(!earDetectionEnabled)
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -133,29 +155,22 @@ fun ConversationalAwarenessSwitch() {
                 .padding(end = 4.dp)
         ) {
             Text(
-                text = stringResource(R.string.conversational_awareness),
+                text = stringResource(R.string.ear_detection),
                 fontSize = 16.sp,
                 color = textColor
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.conversational_awareness_description),
-                fontSize = 12.sp,
-                color = textColor.copy(0.6f),
-                lineHeight = 14.sp,
-            )
         }
         StyledSwitch(
-            checked = conversationalAwarenessEnabled,
+            checked = earDetectionEnabled,
             onCheckedChange = {
-                updateConversationalAwareness(it)
-            },
+                updateEarDetection(it)
+            }
         )
     }
 }
 
 @Preview
 @Composable
-fun ConversationalAwarenessSwitchPreview() {
-    ConversationalAwarenessSwitch()
+fun EarDetectionSwitchPreview() {
+    EarDetectionSwitch()
 }

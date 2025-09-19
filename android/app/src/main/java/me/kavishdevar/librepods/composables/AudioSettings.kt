@@ -20,6 +20,7 @@
 
 package me.kavishdevar.librepods.composables
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
@@ -27,7 +28,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -37,12 +41,32 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.services.ServiceManager
+import me.kavishdevar.librepods.utils.ATTManager
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
 fun AudioSettings() {
     val isDarkTheme = isSystemInDarkTheme()
     val textColor = if (isDarkTheme) Color.White else Color.Black
+    val attManager = ATTManager(ServiceManager.getService()?.device?: throw IllegalStateException("No device connected"))
+    DisposableEffect(attManager) {
+        onDispose {
+            try {
+                attManager.disconnect()
+            } catch (e: Exception) {
+                Log.w("AirPodsAudioSettings", "Error while disconnecting ATTManager: ${e.message}")
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        Log.d("AirPodsAudioSettings", "Connecting to ATT...")
+        try {
+            attManager.connect()
+        } catch (e: Exception) {
+            Log.w("AirPodsAudioSettings", "Error while connecting ATTManager: ${e.message}")
+        }
+    }
 
     Text(
         text = stringResource(R.string.audio).uppercase(),
@@ -63,7 +87,29 @@ fun AudioSettings() {
             .padding(top = 2.dp)
     ) {
 
+        PersonalizedVolumeSwitch()
+        HorizontalDivider(
+            thickness = 1.5.dp,
+            color = Color(0x40888888),
+            modifier = Modifier
+                .padding(start = 12.dp, end = 0.dp)
+        )
+
         ConversationalAwarenessSwitch()
+        HorizontalDivider(
+            thickness = 1.5.dp,
+            color = Color(0x40888888),
+            modifier = Modifier
+                .padding(start = 12.dp, end = 0.dp)
+        )
+
+        LoudSoundReductionSwitch(attManager)
+        HorizontalDivider(
+            thickness = 1.5.dp,
+            color = Color(0x40888888),
+            modifier = Modifier
+                .padding(start = 12.dp, end = 0.dp)
+        )
 
         Column(
             modifier = Modifier
@@ -91,7 +137,6 @@ fun AudioSettings() {
                     color = textColor.copy(alpha = 0.6f)
                 )
             )
-
             AdaptiveStrengthSlider()
         }
     }
