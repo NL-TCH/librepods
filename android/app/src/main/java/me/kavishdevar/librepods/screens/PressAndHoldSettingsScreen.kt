@@ -403,6 +403,7 @@ fun LongPressElement(name: String, enabled: Boolean = true, resourceId: Int, isF
                 Text(
                     name,
                     fontSize = 16.sp,
+                    color = textColor,
                     fontFamily = FontFamily(Font(R.font.sf_pro)),
                 )
                 Text (

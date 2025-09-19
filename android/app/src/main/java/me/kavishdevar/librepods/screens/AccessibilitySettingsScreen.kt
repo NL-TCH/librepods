@@ -742,6 +742,7 @@ fun AccessibilitySettingsScreen() {
                     Text(
                         "Phone",
                         fontSize = 16.sp,
+                        color = textColor,
                         fontFamily = FontFamily(Font(R.font.sf_pro)),
                         modifier = Modifier.weight(1f)
                     )
@@ -792,6 +793,7 @@ fun AccessibilitySettingsScreen() {
                     Text(
                         "Media",
                         fontSize = 16.sp,
+                        color = textColor,
                         fontFamily = FontFamily(Font(R.font.sf_pro)),
                         modifier = Modifier.weight(1f)
                     )
