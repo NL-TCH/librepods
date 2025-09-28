@@ -287,6 +287,7 @@ fun HearingAidScreen(navController: NavController) {
                 }
             }
         },
-        backdrop = backdrop
+        hazeState = hazeState,
+        // backdrop = backdrop
     )
 }
