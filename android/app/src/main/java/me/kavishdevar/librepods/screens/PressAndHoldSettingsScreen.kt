@@ -442,10 +442,12 @@ fun LongPressActionElement(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
+	val isDarkTheme = isSystemInDarkTheme()
         Text(
             name,
             fontSize = 16.sp,
             fontFamily = FontFamily(Font(R.font.sf_pro)),
+	    color = if (isDarkTheme) Color.White else Color.Black,
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 4.dp)

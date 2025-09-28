@@ -350,7 +350,8 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
-                            fontFamily = FontFamily(Font(R.font.sf_pro))
+                            fontFamily = FontFamily(Font(R.font.sf_pro)),
+			    color = if (isSystemInDarkTheme()) Color.White else Color.Black
                         )
                     )
                 }
