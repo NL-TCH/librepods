@@ -111,8 +111,8 @@ fun Onboarding(navController: NavController, activityContext: Context) {
         kotlinx.coroutines.MainScope().launch {
             withContext(Dispatchers.IO) {
                 try {
-                    val process = Runtime.getRuntime().exec("su -c id")
-                    val exitValue = process.waitFor()
+                    val process = Runtime.getRuntime().exec("/system/bin/su -c id")
+                    val exitValue = process.waitFor() // no idea why i have this, probably don't need to do this
                     withContext(Dispatchers.Main) {
                         rootCheckPassed = (exitValue == 0)
                         rootCheckFailed = (exitValue != 0)
