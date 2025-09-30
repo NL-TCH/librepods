@@ -126,7 +126,7 @@ import java.nio.ByteOrder
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
-const val TAG = "AirPodsService"
+private const val TAG = "AirPodsService"
 
 object ServiceManager {
     @ExperimentalEncodingApi
@@ -379,7 +379,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     true
                 )
                 if (!contains("long_press_nc")) putBoolean("long_press_nc", true)
-                if (!contains("off_listening_mode")) putBoolean("off_listening_mode", false)
                 if (!contains("show_phone_battery_in_widget")) putBoolean(
                     "show_phone_battery_in_widget",
                     true

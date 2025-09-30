@@ -23,6 +23,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -56,6 +57,7 @@ fun NavigationButton(
     name: String,
     navController: NavController, onClick: (() -> Unit)? = null,
     independent: Boolean = true,
+    title: String? = null,
     description: String? = null,
     currentState: String? = null
 ) {
@@ -63,6 +65,22 @@ fun NavigationButton(
     var backgroundColor by remember { mutableStateOf(if (isDarkTheme) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)) }
     val animatedBackgroundColor by animateColorAsState(targetValue = backgroundColor, animationSpec = tween(durationMillis = 500))
     Column {
+        if (title != null) {
+            Box(
+                modifier = Modifier
+                    .background(if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7))
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+            ){
+                Text(
+                    text = title,
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkTheme) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f),
+                    )
+                )
+            }
+        }
         Row(
             modifier = Modifier
                 .background(animatedBackgroundColor, RoundedCornerShape(if (independent) 28.dp else 0.dp))
@@ -113,16 +131,22 @@ fun NavigationButton(
             )
         }
         if (description != null) {
-            Text(
-                text = description,
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Light,
-                    color = if (isDarkTheme) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f),
-                    fontFamily = FontFamily(Font(R.font.sf_pro))
-                ),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .background(if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7)) // because blur effect doesn't work for some reason
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = description,
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Light,
+                        color = if (isDarkTheme) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f),
+                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                    ),
+                    // modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
         }
     }
 }

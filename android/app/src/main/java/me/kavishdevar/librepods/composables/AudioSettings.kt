@@ -22,6 +22,7 @@ package me.kavishdevar.librepods.composables
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -50,15 +51,20 @@ fun AudioSettings(navController: NavController) {
     val isDarkTheme = isSystemInDarkTheme()
     val textColor = if (isDarkTheme) Color.White else Color.Black
 
-    Text(
-        text = stringResource(R.string.audio),
-        style = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = textColor.copy(alpha = 0.6f)
-        ),
-        modifier = Modifier.padding(16.dp, bottom = 4.dp)
-    )
+    Box(
+        modifier = Modifier
+            .background(if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7))
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ){
+        Text(
+            text = stringResource(R.string.audio),
+            style = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = textColor.copy(alpha = 0.6f)
+            )
+        )
+    }
 
     val backgroundColor = if (isDarkTheme) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
 

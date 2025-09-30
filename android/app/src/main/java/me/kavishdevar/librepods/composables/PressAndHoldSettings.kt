@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -70,20 +71,21 @@ fun PressAndHoldSettings(navController: NavController) {
         StemAction.DIGITAL_ASSISTANT -> "Digital Assistant"
         else -> "INVALID!!"
     }
-
-    Text(
-        text = stringResource(R.string.press_and_hold_airpods),
-        style = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = textColor.copy(alpha = 0.6f),
-            fontFamily = FontFamily(Font(R.font.sf_pro))
-        ),
-        modifier = Modifier.padding(16.dp, bottom = 4.dp)
-    )
-
-    Spacer(modifier = Modifier.height(1.dp))
-
+    Box(
+        modifier = Modifier
+            .background(if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7))
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ){
+        Text(
+            text = stringResource(R.string.press_and_hold_airpods),
+            style = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = textColor.copy(alpha = 0.6f),
+                fontFamily = FontFamily(Font(R.font.sf_pro))
+            )
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()

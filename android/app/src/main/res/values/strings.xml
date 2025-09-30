@@ -174,4 +174,7 @@
     <string name="found_offset_restart_bluetooth">Found offset please restart the Bluetooth process</string>
     <string name="digital_assistant">Digital Assistant</string>
     <string name="on">On</string>
+    <string name="camera_remote">Camera Remote</string>
+    <string name="camera_control">Camera Control</string>
+    <string name="camera_control_description">Capture a photo, start or stop recording, and more using either Press Once or Press and Hold. When using AirPods for camera actions, if you select Press Once, media control gestures will be unavailable, and if you select Press and Hold, listening mode and Digital Assistant gestures will be unavailable.</string>
 </resources>

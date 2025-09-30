@@ -246,7 +246,7 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                 }
 
                 item { Spacer(modifier = Modifier.height(32.dp)) }
-                item { NavigationButton(to = "hearing_aid", stringResource(R.string.hearing_aid), navController) }
+                item { NavigationButton(to = "hearing_aid", name = stringResource(R.string.hearing_aid), navController = navController) }
 
                 item { Spacer(modifier = Modifier.height(16.dp)) }
                 item { NoiseControlSettings(service = service) }
@@ -257,7 +257,8 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                 item { Spacer(modifier = Modifier.height(16.dp)) }
                 item { CallControlSettings(hazeState = hazeState) }
 
-                // camera control goes here, airpods side is done, i just need to figure out how to listen to app open/close events
+                item { Spacer(modifier = Modifier.height(16.dp)) }
+                item { NavigationButton(to = "camera_control", name = stringResource(R.string.camera_remote), description = stringResource(R.string.camera_control_description), title = stringResource(R.string.camera_control), navController = navController) }
 
                 item { Spacer(modifier = Modifier.height(16.dp)) }
                 item { AudioSettings(navController = navController) }

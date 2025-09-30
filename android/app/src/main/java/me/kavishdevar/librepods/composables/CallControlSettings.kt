@@ -72,16 +72,21 @@ fun CallControlSettings(hazeState: HazeState) {
     val isDarkTheme = isSystemInDarkTheme()
     val textColor = if (isDarkTheme) Color.White else Color.Black
     val backgroundColor = if (isDarkTheme) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
-
-    Text(
-        text = stringResource(R.string.call_controls),
-        style = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = textColor.copy(alpha = 0.6f)
-        ),
-        modifier = Modifier.padding(16.dp, bottom = 4.dp)
-    )
+    Box(
+        modifier = Modifier
+            .background(if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7))
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ){
+        Text(
+            text = stringResource(R.string.call_controls),
+            style = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = textColor.copy(alpha = 0.6f)
+            ),
+            modifier = Modifier.padding(16.dp, bottom = 4.dp)
+        )
+    }
 
     Column(
         modifier = Modifier

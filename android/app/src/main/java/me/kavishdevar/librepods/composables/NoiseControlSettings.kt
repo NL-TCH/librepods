@@ -179,16 +179,20 @@ fun NoiseControlSettings(
     } else {
         context.registerReceiver(noiseControlReceiver, noiseControlIntentFilter)
     }
-
-    Text(
-        text = stringResource(R.string.noise_control),
-        style = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = textColor.copy(alpha = 0.6f),
-        ),
-        modifier = Modifier.padding(8.dp, bottom = 2.dp)
-    )
+    Box(
+        modifier = Modifier
+            .background(if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7))
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ){
+        Text(
+            text = stringResource(R.string.noise_control),
+            style = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = textColor.copy(alpha = 0.6f),
+            )
+        )
+    }
     @Suppress("COMPOSE_APPLIER_CALL_MISMATCH")
     BoxWithConstraints(
         modifier = Modifier
