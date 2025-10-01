@@ -85,6 +85,7 @@ fi
 
 for lib_path in \
     "/apex/com.android.btservices/lib64/libbluetooth_jni.so" \
+    "/apex/com.android.bt/lib64/libbluetooth_jni.so" \
     "/system/lib64/libbluetooth_jni.so" \
     "/system/lib64/libbluetooth_qti.so" \
     "/system_ext/lib64/libbluetooth_qti.so"; do
