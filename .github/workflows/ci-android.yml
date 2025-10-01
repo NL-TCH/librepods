@@ -32,67 +32,73 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug
         working-directory: android
-      - name: Upload artifact
+      - name: Zip root-module directory
+        run: sh ./build-magisk-module.sh
+      - name: Upload artifact apk
         uses: actions/upload-artifact@v4
         with:
           name: Debug APK
           path: android/app/build/outputs/apk/**/*.apk
+      - name: Upload artifact root module
+        uses: actions/upload-artifact@v4
+        with:
+          name: Debug rootmodule
+          path: btl2capfix.zip
   nightly-release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/release-nightly' || github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/release-nightly') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true')
     needs: build-debug-apk
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
+      - name: Move artifacts to working dir
+        run: |
+          mv "./Debug APK/debug/"*.apk ./app-debug.apk
+          mv "./Debug rootmodule/btl2capfix.zip" ./btl2capfix.zip
       - name: Export APK_NAME for later use
         run: echo "APK_NAME=LibrePods-$(echo ${{ github.sha }} | cut -c1-7).apk" >> $GITHUB_ENV
       - name: Rename .apk file
-        run: mv "./Debug APK/debug/"*.apk "./$APK_NAME"
+        run: mv ./app-debug.apk "./$APK_NAME"
       - name: Decode keystore file
         run: echo "${{ secrets.DEBUG_KEYSTORE_FILE }}" | base64 --decode > debug.keystore
       - name: Install apksigner
         run: sudo apt-get update && sudo apt-get install -y apksigner
       - name: Sign APK
         run: |
-          apksigner sign --ks debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android "./$APK_NAME"
+          apksigner sign --ks debug.keystore \
+            --ks-key-alias androiddebugkey \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            "./$APK_NAME"
       - name: Verify APK
         run: apksigner verify "./$APK_NAME"
       - name: Fetch the latest non-nightly release tag
         id: fetch-tag
-        run: echo "::set-output name=tag::$(git describe --tags $(git rev-list --tags --max-count=1))"
+        run: echo "tag=$(git describe --tags $(git rev-list --tags --max-count=1))" >> $GITHUB_OUTPUT
       - name: Retrieve commits since the last release
         id: get-commits
         run: |
           COMMITS=$(git log ${{ steps.fetch-tag.outputs.tag }}..HEAD --pretty=format:"- %s (%h)" --abbrev-commit)
-          echo "::set-output name=commits::${COMMITS}"
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
       - name: Prepare release notes
         id: release-notes
         run: |
-          # Create a temporary file for release notes
           NOTES_FILE=$(mktemp)
-          
-          # Process custom notes if they exist
+          echo "${{ steps.get-commits.outputs.commits }}" > "$NOTES_FILE"
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.custom_notes }}" ]; then
             CUSTOM_NOTES="${{ github.event.inputs.custom_notes }}"
-            
-            # Check if custom notes already have bullet points or GitHub-style formatting
             if echo "$CUSTOM_NOTES" | grep -q "^\*\|^- \|http.*commit\|in #[0-9]\+"; then
-              # Already formatted, use as is
-              echo "$CUSTOM_NOTES" > "$NOTES_FILE"
+              echo "$CUSTOM_NOTES" >> "$NOTES_FILE"
             else
-              # Add bullet point formatting
-              echo "- $CUSTOM_NOTES" > "$NOTES_FILE"
+              echo "- $CUSTOM_NOTES" >> "$NOTES_FILE"
             fi
           fi
-          
           echo "notes_file=$NOTES_FILE" >> $GITHUB_OUTPUT
-      - name: Zip root-module directory
-        run: sh ./build-magisk-module.sh
       - name: Delete release if exist then create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "nightly" && gh release delete "nightly" -y --cleanup-tag
+          gh release view "nightly" && gh release delete "nightly" -y --cleanup-tag || true
           gh release create "nightly" "./$APK_NAME" "./btl2capfix.zip" -p -t "Nightly Release" --notes-file "${{ steps.release-notes.outputs.notes_file }}" --generate-notes
